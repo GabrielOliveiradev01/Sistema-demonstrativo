@@ -18,6 +18,8 @@ Sistema de agendamento com Next.js 14 e Supabase.
 
 4. **Deploy**: Clique em **Deploy site**. O build usa `npm run build`.
 
+5. **Importante:** Em Build & deploy → Build settings, **não defina** um "Publish directory" customizado. Deixe em branco; o plugin Next.js cuida da publicação.
+
 ## Desenvolvimento local
 
 ```bash
