@@ -31,13 +31,9 @@ export function useClientes() {
   useEffect(() => {
     const channel = supabase
       .channel("clientes-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () => {
-        refetch();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () => { void refetch(); })
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { void supabase.removeChannel(channel); };
   }, [refetch]);
 
   return { clientes, loading, error, refetch };

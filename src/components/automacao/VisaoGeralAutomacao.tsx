@@ -29,7 +29,7 @@ export function VisaoGeralAutomacao({ onCriarNova }: { onCriarNova: () => void }
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {cards.map((c) => {
-            const valor = (v as Record<string, number>)[c.key];
+            const valor = (v as unknown as Record<string, number>)[c.key];
             const fmt = (c as { format?: string }).format;
             const display = fmt === "currency" ? formatBRL(valor) : valor;
             const sub = (c as { sub?: string }).sub;

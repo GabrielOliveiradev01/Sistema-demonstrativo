@@ -50,16 +50,10 @@ export function useDashboard() {
   useEffect(() => {
     const channel = supabase
       .channel("dashboard-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => {
-        refetch();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () => {
-        refetch();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => { void refetch(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () => { void refetch(); })
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { void supabase.removeChannel(channel); };
   }, [refetch]);
 
   return { financeiro, ocupacao, risco, ia, clientes, loading, error, refetch };

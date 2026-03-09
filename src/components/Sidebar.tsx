@@ -68,14 +68,12 @@ export function Sidebar() {
 
     const channel = supabase
       .channel("sidebar-agenda-badge")
-      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => {
-        loadAgendaCount();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => { void loadAgendaCount(); })
       .subscribe();
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, []);
 

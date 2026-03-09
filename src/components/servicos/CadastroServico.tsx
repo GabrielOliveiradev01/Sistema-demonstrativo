@@ -85,7 +85,7 @@ export function CadastroServico({ servico, categorias, isNovo, onFechar, onSalva
                 <div className="flex items-center gap-2"><input type="checkbox" defaultChecked={p.ativo} /><span className="font-medium text-slate-800">{p.nome}</span></div>
                 <div><label className="text-xs text-slate-500">Preço</label><input type="number" defaultValue={p.precoPersonalizado ?? data.precoBase} className="ml-1 w-20 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
                 <div><label className="text-xs text-slate-500">Duração (min)</label><input type="number" defaultValue={p.duracaoPersonalizada ?? data.duracao} className="ml-1 w-16 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
-                <div><label className="text-xs text-slate-500">Comissão %</label><input type="number" defaultValue={p.comissaoPersonalizada} className="ml-1 w-14 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
+                <div><label className="text-xs text-slate-500">Comissão %</label><input type="number" defaultValue={p.comissaoPersonalizada ?? 0} className="ml-1 w-14 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
               </div>
             ))}
           </div>

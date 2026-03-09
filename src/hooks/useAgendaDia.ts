@@ -61,13 +61,9 @@ export function useAgendaDia(data: Date) {
   useEffect(() => {
     const channel = supabase
       .channel("agenda-agendamentos-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => {
-        refetch();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => { void refetch(); })
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { void supabase.removeChannel(channel); };
   }, [refetch]);
 
   return {

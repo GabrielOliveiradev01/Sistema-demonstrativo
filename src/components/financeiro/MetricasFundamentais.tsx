@@ -35,7 +35,7 @@ export function MetricasFundamentais({ data, loading }: Props) {
   };
 
   const formatValor = (key: string) => {
-    const v = (m as Record<string, number>)[key];
+    const v = (m as unknown as Record<string, number>)[key];
     if (key === "churnCliente" || key === "taxaConversaoFinanceira") return `${v}%`;
     if (key === "ticketMedio" || key === "receitaPorHora" || key === "ltvMedio" || key === "cac")
       return formatBRL(v);

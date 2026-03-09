@@ -74,10 +74,10 @@ export function useFinanceiro() {
   useEffect(() => {
     const channel = supabase
       .channel("financeiro-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => refetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro_movimentacoes" }, () => refetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => { void refetch(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro_movimentacoes" }, () => { void refetch(); })
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => { void supabase.removeChannel(channel); };
   }, [refetch]);
 
   return {

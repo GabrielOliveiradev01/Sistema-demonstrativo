@@ -38,7 +38,7 @@ export function VisaoFinanceiraGeral({ data, loading }: { data: VisaoFinanceiraG
   const formatValor = (key: string) => {
     if (key === "metaAtingidaPercent") return `${v.metaAtingidaPercent.toFixed(1)}%`;
     if (key === "ticketMedio") return formatBRL(v.ticketMedio);
-    const valor = (v as Record<string, number>)[key];
+    const valor = (v as unknown as Record<string, number>)[key];
     return typeof valor === "number" ? formatBRL(valor) : "";
   };
 

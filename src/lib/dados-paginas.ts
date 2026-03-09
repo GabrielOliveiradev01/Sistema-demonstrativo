@@ -70,18 +70,21 @@ export async function fetchProfissionaisComMetricas(): Promise<ProfissionalListI
   const totalAgPorProf = new Map<string, number>();
   (totalPorProf ?? []).forEach((r: { profissional_id: string }) => totalAgPorProf.set(r.profissional_id, (totalAgPorProf.get(r.profissional_id) ?? 0) + 1));
 
-  return (profs ?? []).map((p: { id: string; nome: string; especialidade?: string | null; unidade_id?: string | null; unidades?: { nome: string } | null }) => {
+  type ProfRow = { id: string; nome: string; especialidade?: string | null; unidade_id?: string | null; unidades?: { nome: string } | { nome: string }[] | null };
+  return (profs ?? []).map((p: ProfRow) => {
     const receitaMes = receitaPorProf.get(p.id) ?? 0;
     const minutos = minutosPorProf.get(p.id) ?? 0;
     const totalAg = totalAgPorProf.get(p.id) ?? 0;
     const noShow = noShowPorProf.get(p.id) ?? 0;
     const cancel = cancelPorProf.get(p.id) ?? 0;
     const horas = minutos / 60;
+    const un = p.unidades;
+    const unidadeNome = Array.isArray(un) ? un[0]?.nome : (un as { nome: string } | null)?.nome;
     return {
       id: p.id,
       nome: p.nome,
       especialidade: p.especialidade ?? "—",
-      unidade: (p.unidades as { nome: string } | null)?.nome ?? "—",
+      unidade: unidadeNome ?? "—",
       unidade_id: p.unidade_id ?? undefined,
       receitaMes,
       ticketMedio: totalAg > 0 ? Math.round(receitaMes / totalAg) : 0,
@@ -199,17 +202,22 @@ export async function fetchServicosComCategoria(): Promise<ServicoListItem[]> {
     if (r.servico_id) receitaPorServico.set(r.servico_id, (receitaPorServico.get(r.servico_id) ?? 0) + Number(r.valor ?? 0));
   });
 
-  return servicos.map((s: { id: string; nome: string; duracao_minutos?: number | null; valor_base?: number | null; ativo?: boolean; categoria_id?: string | null; categorias_servico?: { nome: string } | null }) => ({
+  type ServicoRow = { id: string; nome: string; duracao_minutos?: number | null; valor_base?: number | null; ativo?: boolean; categoria_id?: string | null; categorias_servico?: { nome: string } | { nome: string }[] | null };
+  return servicos.map((s: ServicoRow) => {
+    const cat = s.categorias_servico;
+    const categoriaNome = Array.isArray(cat) ? cat[0]?.nome : (cat as { nome: string } | null)?.nome;
+    return {
     id: s.id,
     nome: s.nome,
     categoriaId: s.categoria_id ?? "",
-    categoriaNome: (s.categorias_servico as { nome: string } | null)?.nome ?? "—",
+    categoriaNome: categoriaNome ?? "—",
     duracao: s.duracao_minutos ?? 60,
     precoBase: Number(s.valor_base) ?? 0,
     profissionaisVinculados: countPorServico.get(s.id) ?? 0,
     status: s.ativo ? "ativo" : "inativo",
     receita30Dias: receitaPorServico.get(s.id) ?? 0,
-  }));
+  };
+  });
 }
 
 export async function fetchPacotesCombos(): Promise<PacoteComboItem[]> {
@@ -217,25 +225,27 @@ export async function fetchPacotesCombos(): Promise<PacoteComboItem[]> {
     .from("pacotes")
     .select("id, nome, valor_total, duracao_total_min, ativo, pacote_itens(servico_id, quantidade, servicos(nome))")
     .order("created_at", { ascending: false });
-  return (data ?? []).map((p: {
-    id: string;
-    nome: string;
-    valor_total?: number | null;
-    duracao_total_min?: number | null;
-    ativo?: boolean | null;
-    pacote_itens?: { servico_id: string; quantidade?: number | null; servicos?: { nome?: string | null } | null }[];
-  }) => ({
-    id: p.id,
-    nome: p.nome,
-    precoFechado: Number(p.valor_total ?? 0),
-    duracaoTotal: Number(p.duracao_total_min ?? 0),
-    ativo: Boolean(p.ativo),
-    servicos: (p.pacote_itens ?? []).map((it) => ({
-      id: it.servico_id,
-      nome: it.servicos?.nome ?? "Serviço",
-      quantidade: Number(it.quantidade ?? 1),
-    })),
-  }));
+  type PacoteItem = { servico_id: string; quantidade?: number | null; servicos?: { nome?: string | null } | { nome?: string | null }[] | null };
+  type PacoteRow = { id: string; nome: string; valor_total?: number | null; duracao_total_min?: number | null; ativo?: boolean | null; pacote_itens?: PacoteItem[] };
+  const rows = (data ?? []) as unknown as PacoteRow[];
+  return rows.map((p) => {
+    const getNome = (it: PacoteItem) => {
+      const s = it.servicos;
+      return Array.isArray(s) ? s[0]?.nome : s?.nome;
+    };
+    return {
+      id: p.id,
+      nome: p.nome,
+      precoFechado: Number(p.valor_total ?? 0),
+      duracaoTotal: Number(p.duracao_total_min ?? 0),
+      ativo: Boolean(p.ativo),
+      servicos: (p.pacote_itens ?? []).map((it) => ({
+        id: it.servico_id,
+        nome: getNome(it) ?? "Serviço",
+        quantidade: Number(it.quantidade ?? 1),
+      })),
+    };
+  });
 }
 
 // ========== FINANCEIRO (página) ==========
@@ -355,18 +365,23 @@ export async function fetchMovimentosRecentes(): Promise<MovimentoFinanceiro[]> 
     .order("data_vencimento", { ascending: false })
     .limit(50);
   if (error) return [];
-  const ids = [...new Set((movs ?? []).map((m: { agendamento_id?: string | null }) => m.agendamento_id).filter(Boolean))] as string[];
+  const ids = Array.from(new Set((movs ?? []).map((m: { agendamento_id?: string | null }) => m.agendamento_id).filter(Boolean))) as string[];
   const mapaAg: Record<string, { cliente: string; profissional: string; servico: string }> = {};
   if (ids.length > 0) {
     const { data: ags } = await supabase
       .from("agendamentos")
       .select("id, clientes(nome), profissionais(nome), servicos(nome)")
       .in("id", ids);
-    (ags ?? []).forEach((a: { id: string; clientes?: { nome?: string } | null; profissionais?: { nome?: string } | null; servicos?: { nome?: string } | null }) => {
+    type AgRow = { id: string; clientes?: { nome?: string } | { nome?: string }[] | null; profissionais?: { nome?: string } | { nome?: string }[] | null; servicos?: { nome?: string } | { nome?: string }[] | null };
+    const getNome = (x: { nome?: string } | { nome?: string }[] | null | undefined) => {
+      if (!x) return "—";
+      return Array.isArray(x) ? x[0]?.nome : x.nome;
+    };
+    ((ags ?? []) as unknown as AgRow[]).forEach((a) => {
       mapaAg[a.id] = {
-        cliente: a.clientes?.nome ?? "—",
-        profissional: a.profissionais?.nome ?? "—",
-        servico: a.servicos?.nome ?? "—",
+        cliente: getNome(a.clientes) ?? "—",
+        profissional: getNome(a.profissionais) ?? "—",
+        servico: getNome(a.servicos) ?? "—",
       };
     });
   }
@@ -878,18 +893,20 @@ export interface UnidadeConfig {
   responsavelNome?: string | null;
 }
 
+type UnidadeRow = { id: string; nome: string; endereco?: string | null; ativa?: boolean; meta_mensal?: number | null; responsavel_id?: string | null };
+
 export async function fetchUnidadesConfig(): Promise<UnidadeConfig[]> {
   const empresaId = await getEmpresaId();
   const cols = "id, nome, endereco, ativa, meta_mensal";
   const q = supabase.from("unidades").select(cols + ", responsavel_id").order("ordem").order("nome");
   const { data: unids, error } = empresaId ? await q.eq("empresa_id", empresaId) : await q;
-  let lista = unids ?? [];
+  let lista: UnidadeRow[] = (unids ?? []) as unknown as UnidadeRow[];
   let hasResponsavel = !error;
   if (error) {
     const { data: fallback } = empresaId
       ? await supabase.from("unidades").select(cols).eq("empresa_id", empresaId).order("ordem").order("nome")
       : await supabase.from("unidades").select(cols).order("ordem").order("nome");
-    lista = fallback ?? [];
+    lista = (fallback ?? []) as unknown as UnidadeRow[];
     hasResponsavel = false;
   }
   const mapaUser: Record<string, string> = {};
@@ -900,14 +917,7 @@ export async function fetchUnidadesConfig(): Promise<UnidadeConfig[]> {
       (users ?? []).forEach((u: { id: string; nome: string }) => { mapaUser[u.id] = u.nome; });
     }
   }
-  return lista.map((u: {
-    id: string;
-    nome: string;
-    endereco?: string | null;
-    ativa?: boolean;
-    meta_mensal?: number | null;
-    responsavel_id?: string | null;
-  }) => ({
+  return lista.map((u: UnidadeRow) => ({
     id: u.id,
     nome: u.nome,
     endereco: u.endereco ?? "",

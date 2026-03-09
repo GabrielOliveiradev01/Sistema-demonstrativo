@@ -10,8 +10,7 @@ import { ScoreConfiabilidade } from "@/components/clientes/ScoreConfiabilidade";
 import { FormCliente } from "@/components/clientes/FormCliente";
 import { useClientes } from "@/hooks/useClientes";
 import { fetchPerfilCliente, createCliente, updateCliente } from "@/lib/dados-supabase";
-import type { PerfilCliente as PerfilClienteType } from "@/lib/mock-clientes";
-import type { Cliente } from "@/lib/mock-clientes";
+import type { Cliente, PerfilCliente as PerfilClienteType, Segmento } from "@/lib/mock-clientes";
 
 const SEGMENTOS_CONFIG: { id: string; label: string; descricao: string }[] = [
   { id: "vip", label: "VIP (alto LTV)", descricao: "LTV acima de R$ 2.000" },
@@ -84,7 +83,7 @@ export default function ClientesPage() {
   const segmentosComCount = useMemo((): SegmentoItem[] => {
     return SEGMENTOS_CONFIG.map((s) => ({
       ...s,
-      count: clientes.filter((c) => c.segmentos.includes(s.id)).length,
+      count: clientes.filter((c) => c.segmentos.includes(s.id as Segmento)).length,
     }));
   }, [clientes]);
 

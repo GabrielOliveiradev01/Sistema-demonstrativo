@@ -38,7 +38,7 @@ export function PainelInsights({ data, loading }: { data: PainelInsightsData | n
       {loading && <p className="text-sm text-slate-500">Carregando…</p>}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {cards.filter((c) => !c.texto).map((c) => {
-          const valor = (p as Record<string, number>)[c.key];
+          const valor = (p as unknown as Record<string, number>)[c.key];
           const isCurrency = c.key.includes("receita") || c.key.includes("potencial");
           return (
             <div key={c.key} className="card">

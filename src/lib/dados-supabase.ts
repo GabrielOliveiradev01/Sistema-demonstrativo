@@ -3,7 +3,7 @@
  * (compatível com mock-clientes e mock-agenda).
  */
 import { supabase } from "@/lib/supabase";
-import type { Cliente, PerfilCliente } from "@/lib/mock-clientes";
+import type { Cliente, PerfilCliente, Segmento } from "@/lib/mock-clientes";
 import type {
   Agendamento,
   Profissional,
@@ -52,10 +52,10 @@ function mapClienteRowToCliente(r: ClienteRow): Cliente {
     frequenciaMedia: Number(r.frequencia_media_mes) || 0,
     ltv: Number(r.ltv_cache) || 0,
     scoreConfiabilidade: r.score_confiabilidade ?? 0,
-    scoreConfiabilidadeLabel: scoreLabel(r.score_confiabilidade),
+    scoreConfiabilidadeLabel: scoreLabel(r.score_confiabilidade ?? null),
     riscoAbandono: r.risco_abandono ?? 0,
     canalOrigem: r.canal_origem ?? r.origem ?? "",
-    segmentos: Array.isArray(r.segmentos) ? r.segmentos : [],
+    segmentos: (Array.isArray(r.segmentos) ? r.segmentos : []) as Segmento[],
     riscoNoShow: r.score_no_show ?? 0,
   };
 }
@@ -185,10 +185,10 @@ type AgendamentoRow = {
   profissional_id: string;
   servico_id: string | null;
   sala_id: string | null;
-  clientes: { nome: string } | null;
-  profissionais: { id: string; nome: string; cor_agenda: string | null } | null;
-  servicos: { id: string; nome: string } | null;
-  salas: { id: string; nome: string } | null;
+  clientes?: { nome?: string } | { nome?: string }[] | null;
+  profissionais?: { id?: string; nome?: string; cor_agenda?: string | null } | { id?: string; nome?: string; cor_agenda?: string | null }[] | null;
+  servicos?: { id?: string; nome?: string } | { id?: string; nome?: string }[] | null;
+  salas?: { id?: string; nome?: string } | { id?: string; nome?: string }[] | null;
 };
 
 export async function fetchProfissionais(): Promise<Profissional[]> {
@@ -702,12 +702,14 @@ export async function fetchAgendamentosDia(data: Date): Promise<Agendamento[]> {
     .lte("inicio", inicioFim)
     .order("inicio");
   if (error) throw error;
+  const rel = (x: { nome?: string } | { nome?: string }[] | null | undefined) =>
+    !x ? "—" : Array.isArray(x) ? x[0]?.nome ?? "—" : x.nome ?? "—";
   return (rows ?? []).map((a: AgendamentoRow) => ({
     id: a.id,
     clienteId: a.cliente_id,
-    clienteNome: a.clientes?.nome ?? "—",
+    clienteNome: rel(a.clientes),
     servicoId: a.servico_id ?? undefined,
-    servico: a.servicos?.nome ?? "—",
+    servico: rel(a.servicos),
     valor: Number(a.valor) || 0,
     status: mapStatus(a.status),
     riscoNivel: (a.risco_nivel as Agendamento["riscoNivel"]) ?? "baixo",
@@ -716,9 +718,9 @@ export async function fetchAgendamentosDia(data: Date): Promise<Agendamento[]> {
     inicioISO: a.inicio,
     fimISO: a.fim,
     profissionalId: a.profissional_id,
-    profissionalNome: a.profissionais?.nome ?? "—",
+    profissionalNome: rel(a.profissionais),
     salaId: a.sala_id ?? undefined,
-    salaNome: a.salas?.nome ?? undefined,
+    salaNome: rel(a.salas) === "—" ? undefined : rel(a.salas),
   }));
 }
 
@@ -729,6 +731,8 @@ function statusToDb(s: Agendamento["status"]): string {
     pendente: "pendente",
     risco: "cancelado",
     aguardando_pagamento: "aguardando_pagamento",
+    em_atendimento: "em_atendimento",
+    concluido: "concluido",
   };
   return map[s] ?? "pendente";
 }
@@ -817,12 +821,14 @@ export async function fetchListaEspera(): Promise<ClienteWaitlist[]> {
     .eq("atendido", false)
     .order("prioridade", { ascending: true });
   if (error) throw error;
-  return (data ?? []).map((r: { id: string; cliente_id: string; servico_id: string | null; prioridade: number; probabilidade_aceite: number | null; clientes: { nome: string } | null; servicos: { nome: string } | null }) => ({
+  type ListaRow = { id: string; cliente_id: string; servico_id: string | null; prioridade: number; probabilidade_aceite: number | null; clientes?: { nome?: string } | { nome?: string }[] | null; servicos?: { nome?: string } | { nome?: string }[] | null };
+  const n = (x: ListaRow["clientes"]) => (!x ? "—" : Array.isArray(x) ? x[0]?.nome : x.nome) ?? "—";
+  return ((data ?? []) as ListaRow[]).map((r) => ({
     id: r.id,
     clienteId: r.cliente_id,
     servicoId: r.servico_id ?? undefined,
-    nome: r.clientes?.nome ?? "—",
-    servicoDesejado: r.servicos?.nome ?? "—",
+    nome: n(r.clientes),
+    servicoDesejado: n(r.servicos),
     probabilidadeAceite: Number(r.probabilidade_aceite) || 0,
     prioridade: r.prioridade ?? 0,
   }));

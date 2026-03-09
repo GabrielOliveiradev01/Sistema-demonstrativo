@@ -46,10 +46,10 @@ export function useProfissionais() {
   useEffect(() => {
     const channel = supabase
       .channel("profissionais-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => refetch())
-      .on("postgres_changes", { event: "*", schema: "public", table: "profissionais" }, () => refetch())
+      .on("postgres_changes", { event: "*", schema: "public", table: "agendamentos" }, () => { void refetch(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "profissionais" }, () => { void refetch(); })
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => { void supabase.removeChannel(channel); };
   }, [refetch]);
 
   async function getPerfil(id: string): Promise<PerfilProfissionalFull | null> {
