@@ -11,10 +11,10 @@ Sistema de agendamento com Next.js 14 e Supabase.
    - Conecte ao **GitHub** e escolha o repositório `GabrielOliveiradev01/Sistema-demonstrativo`
    - Netlify detecta Next.js automaticamente.
 
-3. **Variáveis de ambiente** (Settings → Environment variables):
-   - `NEXT_PUBLIC_SUPABASE_URL` — URL do projeto Supabase
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Chave anon do Supabase
-   - `SUPABASE_SERVICE_ROLE_KEY` — Service role key (para criar usuários)
+3. **Variáveis de ambiente** (Settings → Environment variables) — **obrigatório para o app funcionar**:
+   - `NEXT_PUBLIC_SUPABASE_URL` — URL do projeto (ex: `https://xxx.supabase.co`)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Chave anon (anon public)
+   - `SUPABASE_SERVICE_ROLE_KEY` — Service role key (para criar usuários na API)
 
 4. **Deploy**: Clique em **Deploy site**. O build usa `npm run build`.
 
