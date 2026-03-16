@@ -31,7 +31,7 @@ const menuItens: MenuItem[] = [
   { href: "/agenda", label: "Agenda", Icon: IconCalendar, aba: "agenda" },
   { href: "/clientes", label: "Clientes", Icon: IconUsers, aba: "clientes" },
   { href: "/profissionais", label: "Profissionais", Icon: IconBriefcase, aba: "profissionais" },
-  { href: "/servicos", label: "Serviços", Icon: IconScissors, aba: "servicos" },
+  { href: "/servicos", label: "Serviços/Procedimentos", Icon: IconScissors, aba: "servicos" },
   { href: "/financeiro", label: "Financeiro", Icon: IconCurrency, aba: "financeiro" },
   { href: "/campanhas", label: "Campanhas WhatsApp", Icon: IconChat, aba: "campanhas" },
   { href: "/inteligencia", label: "Inteligência", Icon: IconLightBulb, aba: "inteligencia" },

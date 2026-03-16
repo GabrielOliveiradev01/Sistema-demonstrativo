@@ -20,7 +20,10 @@ export interface Servico {
 }
 
 export interface ServicoCompleto extends Servico {
-  descricao: string;
+  descricao: string | null;
+  observacao: string | null;
+  profissionalIds?: string[];
+  profissionalNomes?: string[];
   corCalendario: string;
   imagemUrl?: string;
   bufferAntes: number;
@@ -78,6 +81,7 @@ export function getServicoCompleto(id: string): ServicoCompleto | null {
   return {
     ...s,
     descricao: "Serviço de qualidade com produtos premium.",
+    observacao: "",
     corCalendario: "#22c55e",
     bufferAntes: 0,
     bufferDepois: 15,
@@ -125,6 +129,7 @@ export function getServicoVazio(): ServicoCompleto {
     status: "ativo",
     receita30Dias: 0,
     descricao: "",
+    observacao: "",
     corCalendario: "#22c55e",
     bufferAntes: 0,
     bufferDepois: 15,

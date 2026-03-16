@@ -3,6 +3,7 @@
  * — todos alimentados pelo Supabase.
  */
 import { supabase } from "@/lib/supabase";
+import { fetchInsightsInteligenciaAplicada } from "@/lib/dados-supabase";
 
 // ========== PROFISSIONAIS ==========
 export interface ProfissionalListItem {
@@ -119,7 +120,6 @@ export async function fetchPerfilProfissionalCompleto(id: string, base?: Profiss
   const p = lista.find((x) => x.id === id);
   if (!p) return null;
 
-  const { fetchInsightsInteligenciaAplicada } = await import("@/lib/dados-supabase");
   const insights = await fetchInsightsInteligenciaAplicada(id);
 
   return {
@@ -164,6 +164,10 @@ export interface ServicoListItem {
   profissionaisVinculados: number;
   status: "ativo" | "inativo";
   receita30Dias: number;
+  descricao?: string | null;
+  observacao?: string | null;
+  profissionalIds?: string[];
+  profissionalNomes?: string[];
 }
 
 export interface PacoteComboItem {
@@ -187,7 +191,7 @@ export async function fetchCategorias(): Promise<CategoriaItem[]> {
 
 export async function fetchServicosComCategoria(): Promise<ServicoListItem[]> {
   const [servicosRes, countRes] = await Promise.all([
-    supabase.from("servicos").select("id, nome, duracao_minutos, valor_base, ativo, categoria_id, categorias_servico(nome)").order("nome"),
+    supabase.from("servicos").select("id, nome, duracao_minutos, valor_base, ativo, categoria_id, descricao, observacao, profissional_ids, profissional_nomes, categorias_servico(nome)").order("nome"),
     supabase.from("servicos_profissionais").select("servico_id"),
   ]);
   const servicos = servicosRes.data ?? [];
@@ -202,7 +206,7 @@ export async function fetchServicosComCategoria(): Promise<ServicoListItem[]> {
     if (r.servico_id) receitaPorServico.set(r.servico_id, (receitaPorServico.get(r.servico_id) ?? 0) + Number(r.valor ?? 0));
   });
 
-  type ServicoRow = { id: string; nome: string; duracao_minutos?: number | null; valor_base?: number | null; ativo?: boolean; categoria_id?: string | null; categorias_servico?: { nome: string } | { nome: string }[] | null };
+  type ServicoRow = { id: string; nome: string; duracao_minutos?: number | null; valor_base?: number | null; ativo?: boolean; categoria_id?: string | null; descricao?: string | null; observacao?: string | null; profissional_ids?: string[] | null; profissional_nomes?: string[] | null; categorias_servico?: { nome: string } | { nome: string }[] | null };
   return servicos.map((s: ServicoRow) => {
     const cat = s.categorias_servico;
     const categoriaNome = Array.isArray(cat) ? cat[0]?.nome : (cat as { nome: string } | null)?.nome;
@@ -213,9 +217,13 @@ export async function fetchServicosComCategoria(): Promise<ServicoListItem[]> {
     categoriaNome: categoriaNome ?? "—",
     duracao: s.duracao_minutos ?? 60,
     precoBase: Number(s.valor_base) ?? 0,
-    profissionaisVinculados: countPorServico.get(s.id) ?? 0,
+    profissionaisVinculados: (s.profissional_ids?.length ?? 0) || (countPorServico.get(s.id) ?? 0),
     status: s.ativo ? "ativo" : "inativo",
     receita30Dias: receitaPorServico.get(s.id) ?? 0,
+    descricao: s.descricao ?? null,
+    observacao: s.observacao ?? null,
+    profissionalIds: s.profissional_ids ?? [],
+    profissionalNomes: s.profissional_nomes ?? [],
   };
   });
 }
@@ -709,14 +717,24 @@ export async function fetchReceitaDiaria30(): Promise<AnalyticsReceitaDiaria30[]
   return porDia.map(({ dia, valor }) => ({ dia, valor }));
 }
 
-export async function fetchOcupacaoPorDiaSemana(): Promise<AnalyticsOcupacaoPorDiaSemana[]> {
+export type OcupacaoPorDiaSemanaResult = {
+  dados: AnalyticsOcupacaoPorDiaSemana[];
+  periodo: { de: string; ate: string };
+};
+
+export async function fetchOcupacaoPorDiaSemana(): Promise<OcupacaoPorDiaSemanaResult> {
   const now = new Date();
   const mesInicio = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const { data: ocup } = await supabase.from("v_ocupacao_profissional_dia").select("dia, minutos_ocupados").gte("dia", mesInicio);
+  const mesFim = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const mesFimStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(mesFim.getDate()).padStart(2, "0")}`;
+  const { data: ocup } = await supabase
+    .from("v_ocupacao_profissional_dia")
+    .select("dia, minutos_ocupados")
+    .gte("dia", mesInicio)
+    .lte("dia", mesFimStr);
   const { count: profCount } = await supabase.from("profissionais").select("id", { count: "exact", head: true }).eq("ativo", true);
   const diasUteisPorDow: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
   let diaAtual = new Date(mesInicio);
-  const mesFim = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   while (diaAtual <= mesFim) {
     diasUteisPorDow[diaAtual.getDay()]++;
     diaAtual.setDate(diaAtual.getDate() + 1);
@@ -731,13 +749,14 @@ export async function fetchOcupacaoPorDiaSemana(): Promise<AnalyticsOcupacaoPorD
     minutosPorDow.set(dow, (minutosPorDow.get(dow) ?? 0) + (o.minutos_ocupados ?? 0));
   });
   const dowLabels: Record<number, string> = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sáb" };
-  return [1, 2, 3, 4, 5, 6].map((dow) => {
+  const dados: AnalyticsOcupacaoPorDiaSemana[] = [1, 2, 3, 4, 5, 6].map((dow) => {
     const minutos = minutosPorDow.get(dow) ?? 0;
     const diasUteis = diasUteisPorDow[dow] ?? 1;
     const disponivel = (profCount ?? 0) * 8 * 60 * diasUteis;
     const ocupacao = disponivel > 0 ? Math.round((minutos / disponivel) * 100) : 0;
     return { dia: dowLabels[dow], ocupacao: Math.min(100, ocupacao) };
   });
+  return { dados, periodo: { de: mesInicio, ate: mesFimStr } };
 }
 
 export async function fetchCancelamentosPorHorario(): Promise<AnalyticsCancelamentosPorHorario[]> {

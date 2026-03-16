@@ -13,6 +13,11 @@ interface CalendarioDiaProps {
   profissionais: { id: string; nome: string }[];
   /** Define se as colunas representam profissionais (default) ou salas */
   modoColuna?: "profissional" | "sala";
+  /** Horários da clínica: início e fim em decimal (ex: 9 para 09:00) — respeita config_horarios */
+  horarioInicio?: number;
+  horarioFim?: number;
+  /** Se true, a clínica está fechada neste dia */
+  fechado?: boolean;
 }
 
 function parseTime(t: string) {
@@ -32,12 +37,17 @@ export function CalendarioDia({
   profissionalFiltroId,
   profissionais,
   modoColuna = "profissional",
+  horarioInicio = HORARIO_INICIO,
+  horarioFim = HORARIO_FIM,
+  fechado = false,
 }: CalendarioDiaProps) {
   const stepMin = 30;
-  const totalMinutos = (HORARIO_FIM - HORARIO_INICIO) * 60;
+  const hi = fechado ? horarioInicio : horarioInicio;
+  const hf = fechado ? horarioInicio : horarioFim;
+  const totalMinutos = Math.max(0, (hf - hi) * 60);
   const slots = Array.from(
     { length: totalMinutos / stepMin },
-    (_, i) => HORARIO_INICIO + (i * stepMin) / 60
+    (_, i) => hi + (i * stepMin) / 60
   );
 
   const colunas = profissionalFiltroId
@@ -72,6 +82,14 @@ export function CalendarioDia({
     if (prem) return "premium";
     return null;
   };
+
+  if (fechado) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-slate-200 bg-slate-50/50 p-8 text-slate-500">
+        <p className="text-center">Clínica fechada neste dia.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-auto">

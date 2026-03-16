@@ -15,22 +15,28 @@ const abas: { id: Aba; label: string; dot: string }[] = [
   { id: "recorrencia", label: "Recorrência", dot: "bg-red-500" },
 ];
 
+export type ProfissionalParaVinculo = { id: string; nome: string };
+
 interface CadastroServicoProps {
   servico: ServicoCompleto | null;
   categorias: CategoriaItem[];
+  profissionaisDisponiveis: ProfissionalParaVinculo[];
+  profissionaisVinculadosIds: string[];
   isNovo: boolean;
   onFechar: () => void;
-  onSalvar: (data: Partial<ServicoCompleto>) => void;
+  onSalvar: (data: Partial<ServicoCompleto> & { profissionaisVinculadosIds?: string[] }) => void;
 }
 
-export function CadastroServico({ servico, categorias, isNovo, onFechar, onSalvar }: CadastroServicoProps) {
+export function CadastroServico({ servico, categorias, profissionaisDisponiveis, profissionaisVinculadosIds, isNovo, onFechar, onSalvar }: CadastroServicoProps) {
   const [aba, setAba] = useState<Aba>("basicas");
   const base = servico ?? null;
   const [form, setForm] = useState<Partial<ServicoCompleto>>(base || {});
+  const [vinculadosIds, setVinculadosIds] = useState<string[]>(profissionaisVinculadosIds);
 
   useEffect(() => {
     setForm(base || {});
-  }, [base?.id, isNovo]);
+    setVinculadosIds(profissionaisVinculadosIds);
+  }, [base?.id, isNovo, profissionaisVinculadosIds]);
 
   if (!base && !isNovo) return null;
 
@@ -59,7 +65,8 @@ export function CadastroServico({ servico, categorias, isNovo, onFechar, onSalva
         {aba === "basicas" && (
           <div className="space-y-4 max-w-lg">
             <div><label className="block text-sm font-medium text-slate-600">Nome</label><input type="text" value={form.nome ?? data.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></div>
-            <div><label className="block text-sm font-medium text-slate-600">Descrição</label><textarea value={form.descricao ?? data.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></div>
+            <div><label className="block text-sm font-medium text-slate-600">Descrição</label><textarea value={form.descricao ?? data.descricao ?? ""} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} rows={2} placeholder="Descrição do serviço para o cliente" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></div>
+            <div><label className="block text-sm font-medium text-slate-600">Observação</label><textarea value={form.observacao ?? data.observacao ?? ""} onChange={(e) => setForm((p) => ({ ...p, observacao: e.target.value }))} rows={2} placeholder="Observações internas (cuidados, materiais, notas)" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></div>
             <div><label className="block text-sm font-medium text-slate-600">Categoria</label><select value={form.categoriaId ?? data.categoriaId} onChange={(e) => setForm((p) => ({ ...p, categoriaId: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">{categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
             <div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-slate-600">Duração base (min)</label><input type="number" value={form.duracao ?? data.duracao} onChange={(e) => setForm((p) => ({ ...p, duracao: Number(e.target.value) }))} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></div><div><label className="block text-sm font-medium text-slate-600">Preço base</label><input type="number" value={form.precoBase ?? data.precoBase} onChange={(e) => setForm((p) => ({ ...p, precoBase: Number(e.target.value) }))} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></div></div>
             <div><label className="block text-sm font-medium text-slate-600">Cor no calendário</label><input type="color" value={form.corCalendario ?? data.corCalendario} onChange={(e) => setForm((p) => ({ ...p, corCalendario: e.target.value }))} className="mt-1 h-10 w-20 rounded border border-slate-200" /></div>
@@ -78,16 +85,31 @@ export function CadastroServico({ servico, categorias, isNovo, onFechar, onSalva
         )}
         {aba === "profissionais" && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-500">Preço e duração personalizados por profissional (ex: Manicure A R$ 80, Manicure B R$ 100).</p>
-            {!data.profissionais?.length && <p className="text-sm text-slate-400">Nenhum profissional vinculado. Adicione na configuração geral.</p>}
-            {data.profissionais?.map((p) => (
-              <div key={p.id} className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 p-3">
-                <div className="flex items-center gap-2"><input type="checkbox" defaultChecked={p.ativo} /><span className="font-medium text-slate-800">{p.nome}</span></div>
-                <div><label className="text-xs text-slate-500">Preço</label><input type="number" defaultValue={p.precoPersonalizado ?? data.precoBase} className="ml-1 w-20 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
-                <div><label className="text-xs text-slate-500">Duração (min)</label><input type="number" defaultValue={p.duracaoPersonalizada ?? data.duracao} className="ml-1 w-16 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
-                <div><label className="text-xs text-slate-500">Comissão %</label><input type="number" defaultValue={p.comissaoPersonalizada ?? 0} className="ml-1 w-14 rounded border border-slate-200 px-2 py-1 text-sm" /></div>
+            <p className="text-sm text-slate-500">Vincule os profissionais que realizam este serviço (ID armazenado na área de serviço).</p>
+            {!profissionaisDisponiveis.length ? (
+              <p className="text-sm text-slate-400">Nenhum profissional cadastrado. Cadastre em Profissionais primeiro.</p>
+            ) : (
+              <div className="space-y-2">
+                {profissionaisDisponiveis.map((p) => {
+                  const selecionado = vinculadosIds.includes(p.id);
+                  return (
+                    <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={selecionado}
+                        onChange={(e) => {
+                          if (e.target.checked) setVinculadosIds((prev) => [...prev, p.id]);
+                          else setVinculadosIds((prev) => prev.filter((id) => id !== p.id));
+                        }}
+                        className="rounded border-slate-300"
+                      />
+                      <span className="font-medium text-slate-800">{p.nome}</span>
+                      <span className="text-xs text-slate-400">({p.id.slice(0, 8)}…)</span>
+                    </label>
+                  );
+                })}
               </div>
-            ))}
+            )}
           </div>
         )}
         {aba === "regras" && (
@@ -109,7 +131,7 @@ export function CadastroServico({ servico, categorias, isNovo, onFechar, onSalva
         )}
       </div>
       <div className="border-t border-slate-200 p-4">
-        <button type="button" onClick={() => onSalvar(form)} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">Salvar serviço</button>
+        <button type="button" onClick={() => onSalvar({ ...form, profissionaisVinculadosIds: vinculadosIds })} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark">Salvar serviço</button>
       </div>
     </div>
   );

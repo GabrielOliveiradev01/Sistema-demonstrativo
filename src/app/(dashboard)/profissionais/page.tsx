@@ -10,7 +10,7 @@ import { AlertasOperacionaisProf } from "@/components/profissionais/AlertasOpera
 import { MetricasProfissionais } from "@/components/profissionais/MetricasProfissionais";
 import { FormProfissional, type ProfissionalFormData } from "@/components/profissionais/FormProfissional";
 import { useProfissionais } from "@/hooks/useProfissionais";
-import { createProfissional, updateProfissional, fetchProfissionalPorId, fetchUnidades } from "@/lib/dados-supabase";
+import { createProfissional, updateProfissional, deleteProfissional, fetchProfissionalPorId, fetchUnidades, saveProfissionaisHorarios } from "@/lib/dados-supabase";
 import { fetchPerfisPermissao } from "@/lib/dados-paginas";
 import type { PerfilProfissionalFull } from "@/lib/dados-paginas";
 import type { ProfissionalCreate } from "@/lib/dados-supabase";
@@ -87,12 +87,32 @@ export default function ProfissionaisPage() {
     };
   }, [profissionais, visaoGeral]);
 
+  const handleExcluirProfissional = useCallback(
+    async (id: string) => {
+      try {
+        await deleteProfissional(id);
+        await refetch();
+        setProfissionalSelecionado(null);
+      } catch (e) {
+        console.error("Erro ao excluir profissional:", e);
+      }
+    },
+    [refetch]
+  );
+
   const handleSalvarProfissional = useCallback(
-    async (payload: ProfissionalCreate, opcoes?: { profissionalJaCriado?: boolean }) => {
+    async (payload: ProfissionalCreate, opcoes?: { profissionalJaCriado?: boolean; profissionalId?: string; horarios?: Array<{ dia_semana: number; abre: string; fecha: string; fechado: boolean }> }) => {
+      let profId: string | undefined;
       if (formState && formState !== "novo" && formState.type === "editar") {
         await updateProfissional(formState.id, payload);
+        profId = formState.id;
       } else if (!opcoes?.profissionalJaCriado) {
-        await createProfissional(payload);
+        profId = await createProfissional(payload);
+      } else {
+        profId = opcoes.profissionalId;
+      }
+      if (profId && opcoes?.horarios?.length) {
+        await saveProfissionaisHorarios(profId, opcoes.horarios);
       }
       await refetch();
       setFormState(null);
@@ -143,6 +163,7 @@ export default function ProfissionaisPage() {
             perfil={perfil}
             onFechar={() => setProfissionalSelecionado(null)}
             onEditar={() => setFormState({ type: "editar", id: perfil.id })}
+            onExcluir={handleExcluirProfissional}
           />
         </div>
       )}

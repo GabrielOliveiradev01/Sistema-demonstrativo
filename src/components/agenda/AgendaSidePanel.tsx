@@ -5,7 +5,7 @@ import { IconX } from "@/components/SidebarIcons";
 import type { Agendamento, ClienteWaitlist } from "@/lib/mock-agenda";
 import type { PerfilCliente } from "@/lib/mock-clientes";
 import type { Cliente } from "@/lib/mock-clientes";
-import type { AgendamentoCreate } from "@/lib/dados-supabase";
+import type { AgendamentoCreate, HorarioClinciaDia } from "@/lib/dados-supabase";
 import { verificarConflitoAgendamento, fetchDuracaoServico, fetchAvisoClienteMesmoDia } from "@/lib/dados-supabase";
 
 const formatBRL = (n: number) =>
@@ -36,6 +36,32 @@ function addMinutes(isoLocal: string, minutes: number): string {
   return `${y}-${pad(m)}-${pad(day)}T${pad(h)}:${pad(min)}:00`;
 }
 
+/** Subtrai minutos de "HH:MM" e retorna "HH:MM" */
+function timeMinusMinutes(timeStr: string, minutes: number): string {
+  const [h, m] = timeStr.split(":").map(Number);
+  const totalMin = (h ?? 0) * 60 + (m ?? 0) - minutes;
+  if (totalMin < 0) return "00:00";
+  const nh = Math.floor(totalMin / 60);
+  const nm = totalMin % 60;
+  return `${pad(nh)}:${pad(nm)}`;
+}
+
+/** Adiciona minutos a "HH:MM" e retorna "HH:MM" */
+function timePlusMinutes(timeStr: string, minutes: number): string {
+  const [h, m] = timeStr.split(":").map(Number);
+  const totalMin = (h ?? 0) * 60 + (m ?? 0) + minutes;
+  const nh = Math.floor(totalMin / 60);
+  const nm = totalMin % 60;
+  return `${pad(nh)}:${pad(nm)}`;
+}
+
+/** Compara dois horários "HH:MM". Retorna true se a <= b */
+function timeLte(a: string, b: string): boolean {
+  const [ah, am] = a.split(":").map(Number);
+  const [bh, bm] = b.split(":").map(Number);
+  return (ah ?? 0) * 60 + (am ?? 0) <= (bh ?? 0) * 60 + (bm ?? 0);
+}
+
 export type PanelState =
   | { type: "idle" }
   | { type: "slot_vazio"; horario: string; profissionalId: string; profissionalNome: string }
@@ -46,8 +72,9 @@ export type PanelState =
 interface AgendaSidePanelProps {
   state: PanelState;
   date: Date;
+  horariosClincia?: HorarioClinciaDia[];
   clientes: Cliente[];
-  servicos: { id: string; nome: string; duracao_minutos?: number }[];
+  servicos: { id: string; nome: string; duracao_minutos?: number; valor_base?: number }[];
   salas: { id: string; nome: string; unidade: string }[];
   profissionais: { id: string; nome: string }[];
   sugestaoEncaixe?: ClienteWaitlist | null;
@@ -67,6 +94,7 @@ interface AgendaSidePanelProps {
 export function AgendaSidePanel({
   state,
   date,
+  horariosClincia = [],
   clientes,
   servicos,
   salas,
@@ -139,8 +167,8 @@ export function AgendaSidePanel({
     }
   }, [state.type, state.type === "editar" ? state.agendamento?.id : null, state.type === "slot_vazio" ? state.horario + state.profissionalId : null, sugestaoEncaixe]);
 
-  // Preencher duração conforme serviço selecionado (base ou personalizada por profissional)
-  // Apenas em novo agendamento ou slot vazio — em edição mantém a duração existente
+  // Preencher duração e valor conforme serviço selecionado (base ou personalizada por profissional)
+  // Apenas em novo agendamento ou slot vazio — em edição mantém os valores existentes
   useEffect(() => {
     if (state.type === "editar") return;
     if (!servicoId) return;
@@ -149,6 +177,10 @@ export function AgendaSidePanel({
     } else {
       const svc = servicos.find((s) => s.id === servicoId);
       setDuracao(svc?.duracao_minutos ?? 60);
+    }
+    const svc = servicos.find((s) => s.id === servicoId);
+    if (svc?.valor_base != null && svc.valor_base > 0) {
+      setValor(svc.valor_base);
     }
   }, [state.type, servicoId, profissionalId, servicos]);
 
@@ -174,11 +206,30 @@ export function AgendaSidePanel({
     }
   }, [state.type, state.type === "agendamento" ? state.agendamento.clienteId : null, getPerfilCliente]);
 
+  const validarHorarioClinica = (): string | null => {
+    const dow = date.getDay();
+    const cfg = horariosClincia.find((h) => h.diaSemana === dow);
+    if (!cfg) return null;
+    if (cfg.fechado || !cfg.abre || !cfg.fecha)
+      return "A clínica está fechada neste dia.";
+    if (!timeLte(cfg.abre, inicioTime))
+      return `Horário fora do funcionamento. A clínica abre às ${cfg.abre}.`;
+    const fimTime = timePlusMinutes(inicioTime, duracao);
+    if (!timeLte(fimTime, cfg.fecha))
+      return `O atendimento terminaria após o fechamento (${cfg.fecha}). Ajuste o horário ou a duração.`;
+    return null;
+  };
+
   const handleSubmitNovo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clienteId || !profissionalId) return;
     setErroConflito(null);
     setAvisoMesmoDia(null);
+    const errHorario = validarHorarioClinica();
+    if (errHorario) {
+      setErroConflito(errHorario);
+      return;
+    }
     const inicioISO = toISOLocal(date, inicioTime);
     const fimISO = addMinutes(inicioISO, duracao);
     const conflito = await verificarConflitoAgendamento({
@@ -216,6 +267,11 @@ export function AgendaSidePanel({
     if (state.type !== "editar" || !clienteId || !profissionalId) return;
     setErroConflito(null);
     setAvisoMesmoDia(null);
+    const errHorario = validarHorarioClinica();
+    if (errHorario) {
+      setErroConflito(errHorario);
+      return;
+    }
     const inicioISO = toISOLocal(date, inicioTime);
     const fimISO = addMinutes(inicioISO, duracao);
     const conflito = await verificarConflitoAgendamento({
@@ -253,6 +309,13 @@ export function AgendaSidePanel({
   if (isForm) {
     const isEditar = state.type === "editar";
     const titulo = isEditar ? "Editar agendamento" : "Novo agendamento";
+    const dow = date.getDay();
+    const cfgDia = horariosClincia.find((h) => h.diaSemana === dow);
+    const horaMin = cfgDia && !cfgDia.fechado && cfgDia.abre ? cfgDia.abre : undefined;
+    let horaMax = cfgDia && !cfgDia.fechado && cfgDia.fecha
+      ? timeMinusMinutes(cfgDia.fecha, duracao)
+      : undefined;
+    if (horaMin && horaMax && !timeLte(horaMin, horaMax)) horaMax = horaMin;
     const dataLabel = date.toLocaleDateString("pt-BR", {
       weekday: "short",
       day: "2-digit",
@@ -337,23 +400,42 @@ export function AgendaSidePanel({
                 type="time"
                 value={inicioTime}
                 onChange={(e) => setInicioTime(e.target.value)}
+                min={horaMin}
+                max={horaMax}
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               />
+              {cfgDia && !cfgDia.fechado && (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Funcionamento: {cfgDia.abre}–{cfgDia.fecha}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600">Duração (min)</label>
-              <select
+              <input
+                type="number"
+                min={5}
+                max={480}
+                step={5}
                 value={duracao}
-                onChange={(e) => setDuracao(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (!Number.isNaN(v)) setDuracao(Math.max(5, Math.min(480, v)));
+                }}
+                list="duracao-opcoes"
+                placeholder={servicoId ? `${servicos.find((s) => s.id === servicoId)?.duracao_minutos ?? 60} min (do serviço)` : "Digite ou selecione"}
                 className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value={15}>15 min</option>
-                <option value={30}>30 min</option>
-                <option value={45}>45 min</option>
-                <option value={60}>1 h</option>
-                <option value={90}>1h30</option>
-                <option value={120}>2 h</option>
-              </select>
+              />
+              <datalist id="duracao-opcoes">
+                {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 75, 90, 105, 120, 150, 180, 240].map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              {servicoId && (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Duração do serviço: {servicos.find((s) => s.id === servicoId)?.duracao_minutos ?? 60} min
+                </p>
+              )}
             </div>
           </div>
           <div>

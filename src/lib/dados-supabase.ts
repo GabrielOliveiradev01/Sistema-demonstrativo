@@ -173,7 +173,7 @@ export async function updateCliente(id: string, payload: ClienteUpdate): Promise
 type ProfissionalRow = { id: string; nome: string; cor_agenda: string | null };
 type SalaRow = { id: string; nome: string; unidade_id: string };
 type UnidadeRow = { id: string; nome: string };
-type ServicoRow = { id: string; nome: string; duracao_minutos?: number | null };
+type ServicoRow = { id: string; nome: string; duracao_minutos?: number | null; valor_base?: number | null };
 type AgendamentoRow = {
   id: string;
   inicio: string;
@@ -254,6 +254,67 @@ export async function updateProfissional(id: string, payload: ProfissionalUpdate
   if (error) throw error;
 }
 
+/** Excluir profissional (desativa; mantém histórico de agendamentos) */
+export async function deleteProfissional(id: string): Promise<void> {
+  const { error } = await supabase.from("profissionais").update({ ativo: false }).eq("id", id);
+  if (error) throw error;
+}
+
+/** Horário de trabalho por dia (0=domingo, 1=segunda, ..., 6=sábado). Múltiplas faixas por dia. */
+export type HorarioProfissional = {
+  dia_semana: number;
+  abre: string; // "09:00" ou "12:30"
+  fecha: string; // "18:00" ou "14:00"
+  fechado: boolean;
+  ordem?: number;
+};
+
+/** Buscar horários de trabalho do profissional (múltiplas faixas por dia) */
+export async function fetchProfissionaisHorarios(profissionalId: string): Promise<HorarioProfissional[]> {
+  const { data, error } = await supabase
+    .from("profissionais_horarios")
+    .select("dia_semana, abre, fecha, fechado, ordem")
+    .eq("profissional_id", profissionalId)
+    .order("dia_semana")
+    .order("ordem");
+  if (error) return [];
+  const defaultHorarios: HorarioProfissional[] = [
+    { dia_semana: 0, abre: "09:00", fecha: "18:00", fechado: true },
+    { dia_semana: 1, abre: "09:00", fecha: "18:00", fechado: false },
+    { dia_semana: 2, abre: "09:00", fecha: "18:00", fechado: false },
+    { dia_semana: 3, abre: "09:00", fecha: "18:00", fechado: false },
+    { dia_semana: 4, abre: "09:00", fecha: "18:00", fechado: false },
+    { dia_semana: 5, abre: "09:00", fecha: "18:00", fechado: false },
+    { dia_semana: 6, abre: "09:00", fecha: "13:00", fechado: false },
+  ];
+  if (!data?.length) return defaultHorarios;
+  const fetched = (data as { dia_semana: number; abre: string | null; fecha: string | null; fechado: boolean; ordem?: number }[]).map((h) => ({
+    dia_semana: h.dia_semana,
+    abre: h.abre ? String(h.abre).slice(0, 5) : "09:00",
+    fecha: h.fecha ? String(h.fecha).slice(0, 5) : "18:00",
+    fechado: !!h.fechado,
+    ordem: h.ordem ?? 0,
+  }));
+  return fetched.length > 0 ? fetched : defaultHorarios;
+}
+
+/** Salvar horários de trabalho do profissional (aceita múltiplas faixas por dia) */
+export async function saveProfissionaisHorarios(profissionalId: string, horarios: HorarioProfissional[]): Promise<void> {
+  await supabase.from("profissionais_horarios").delete().eq("profissional_id", profissionalId);
+  const rows = horarios.map((h, idx) => ({
+    profissional_id: profissionalId,
+    dia_semana: h.dia_semana,
+    abre: h.fechado ? null : h.abre,
+    fecha: h.fechado ? null : h.fecha,
+    fechado: h.fechado,
+    ordem: h.ordem ?? idx,
+  }));
+  if (rows.length > 0) {
+    const { error } = await supabase.from("profissionais_horarios").insert(rows);
+    if (error) throw error;
+  }
+}
+
 /** Buscar um profissional por id (para formulário de edição) */
 export async function fetchProfissionalPorId(id: string): Promise<{
   id: string;
@@ -264,22 +325,25 @@ export async function fetchProfissionalPorId(id: string): Promise<{
   especialidade: string | null;
   unidade_id: string | null;
   cor_agenda: string | null;
+  horarios?: HorarioProfissional[];
 } | null> {
-  const { data, error } = await supabase
-    .from("profissionais")
-    .select("id, nome, email, telefone, cargo, especialidade, unidade_id, cor_agenda")
-    .eq("id", id)
-    .single();
-  if (error || !data) return null;
-  return data as {
-    id: string;
-    nome: string;
-    email: string;
-    telefone: string | null;
-    cargo: string | null;
-    especialidade: string | null;
-    unidade_id: string | null;
-    cor_agenda: string | null;
+  const [profRes, horariosRes] = await Promise.all([
+    supabase.from("profissionais").select("id, nome, email, telefone, cargo, especialidade, unidade_id, cor_agenda").eq("id", id).single(),
+    fetchProfissionaisHorarios(id),
+  ]);
+  if (profRes.error || !profRes.data) return null;
+  return {
+    ...(profRes.data as {
+      id: string;
+      nome: string;
+      email: string;
+      telefone: string | null;
+      cargo: string | null;
+      especialidade: string | null;
+      unidade_id: string | null;
+      cor_agenda: string | null;
+    }),
+    horarios: horariosRes,
   };
 }
 
@@ -373,10 +437,52 @@ export async function updateSala(id: string, payload: SalaUpdate): Promise<void>
   if (error) throw error;
 }
 
+/** Horários de funcionamento da clínica por dia da semana (0=Dom, 6=Sáb) */
+export type HorarioClinciaDia = {
+  diaSemana: number;
+  abre: string;
+  fecha: string;
+  fechado: boolean;
+};
+
+/** Busca horários de funcionamento da clínica (config_horarios) */
+export async function fetchHorariosClincia(): Promise<HorarioClinciaDia[]> {
+  const empresaId = await getEmpresaId();
+  if (!empresaId) {
+    return [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => ({
+      diaSemana,
+      abre: diaSemana === 0 ? "" : diaSemana === 6 ? "09:00" : "09:00",
+      fecha: diaSemana === 0 ? "" : diaSemana === 6 ? "13:00" : "18:00",
+      fechado: diaSemana === 0,
+    }));
+  }
+  const { data } = await supabase
+    .from("config_horarios")
+    .select("dia_semana, abre, fecha, fechado")
+    .eq("empresa_id", empresaId)
+    .order("dia_semana");
+  const mapa = new Map<number, { abre: string; fecha: string; fechado: boolean }>();
+  (data ?? []).forEach((h: { dia_semana: number; abre?: string | null; fecha?: string | null; fechado?: boolean }) => {
+    mapa.set(h.dia_semana, {
+      abre: h.abre ? String(h.abre).slice(0, 5) : "",
+      fecha: h.fecha ? String(h.fecha).slice(0, 5) : "",
+      fechado: h.fechado ?? false,
+    });
+  });
+  return [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => {
+    const cfg = mapa.get(diaSemana) ?? {
+      abre: diaSemana === 0 ? "" : diaSemana === 6 ? "09:00" : "09:00",
+      fecha: diaSemana === 0 ? "" : diaSemana === 6 ? "13:00" : "18:00",
+      fechado: diaSemana === 0,
+    };
+    return { diaSemana, ...cfg };
+  });
+}
+
 export async function fetchServicos(): Promise<Servico[]> {
   const { data, error } = await supabase
     .from("servicos")
-    .select("id, nome, duracao_minutos")
+    .select("id, nome, duracao_minutos, valor_base")
     .eq("ativo", true)
     .order("nome");
   if (error) throw error;
@@ -384,6 +490,7 @@ export async function fetchServicos(): Promise<Servico[]> {
     id: s.id,
     nome: s.nome,
     duracao_minutos: s.duracao_minutos ?? 60,
+    valor_base: s.valor_base != null ? Number(s.valor_base) : 0,
   }));
 }
 
@@ -531,6 +638,9 @@ export async function createCategoriaServico(payload: CategoriaServicoCreate): P
 export type ServicoCreate = {
   nome: string;
   descricao?: string | null;
+  observacao?: string | null;
+  profissional_ids?: string[] | null;
+  profissional_nomes?: string[] | null;
   duracao_minutos?: number;
   valor_base?: number;
   ativo?: boolean;
@@ -559,6 +669,9 @@ export async function createServico(payload: ServicoCreate): Promise<string> {
     .insert({
       nome: payload.nome,
       descricao: payload.descricao ?? null,
+      observacao: payload.observacao ?? null,
+      profissional_ids: payload.profissional_ids ?? [],
+      profissional_nomes: payload.profissional_nomes ?? [],
       duracao_minutos: payload.duracao_minutos ?? 60,
       valor_base: payload.valor_base ?? 0,
       ativo: payload.ativo ?? true,
@@ -592,6 +705,9 @@ export async function updateServico(id: string, payload: ServicoCreate): Promise
     .update({
       nome: payload.nome,
       descricao: payload.descricao ?? null,
+      observacao: payload.observacao ?? null,
+      profissional_ids: payload.profissional_ids ?? [],
+      profissional_nomes: payload.profissional_nomes ?? [],
       duracao_minutos: payload.duracao_minutos ?? 60,
       valor_base: payload.valor_base ?? 0,
       ativo: payload.ativo ?? true,
@@ -614,6 +730,30 @@ export async function updateServico(id: string, payload: ServicoCreate): Promise
       limite_repeticoes: payload.limite_repeticoes ?? null,
     })
     .eq("id", id);
+  if (error) throw error;
+}
+
+/** Buscar IDs dos profissionais vinculados a um serviço */
+export async function fetchProfissionaisVinculadosServico(servicoId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("servicos_profissionais")
+    .select("profissional_id")
+    .eq("servico_id", servicoId)
+    .eq("ativo", true);
+  if (error) return [];
+  return (data ?? []).map((r: { profissional_id: string }) => r.profissional_id);
+}
+
+/** Salvar vínculos serviço ↔ profissionais (apenas IDs) */
+export async function saveServicosProfissionais(servicoId: string, profissionalIds: string[]): Promise<void> {
+  await supabase.from("servicos_profissionais").delete().eq("servico_id", servicoId);
+  if (profissionalIds.length === 0) return;
+  const rows = profissionalIds.map((profissional_id) => ({
+    servico_id: servicoId,
+    profissional_id,
+    ativo: true,
+  }));
+  const { error } = await supabase.from("servicos_profissionais").insert(rows);
   if (error) throw error;
 }
 
@@ -935,6 +1075,8 @@ export type ResumoOcupacao = {
   profissionalMenorOcupacao: { nome: string; ocupacao: number };
   horariosOciososCriticos: { dia: string; horario: string; slots: number }[];
   graficoOcupacao: { dia: string; ocupacao: number }[];
+  /** Período dos dados do gráfico (ocupação por dia da semana) */
+  graficoOcupacaoPeriodo?: { de: string; ate: string };
 };
 
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -950,11 +1092,16 @@ export async function fetchResumoOcupacao(): Promise<ResumoOcupacao> {
   const oneWeekAgo = new Date(now);
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  const { data: ocupacaoDias } = await supabase
-    .from("v_ocupacao_profissional_dia")
-    .select("profissional_id, profissional_nome, dia, minutos_ocupados")
-    .gte("dia", inicioMes)
-    .lte("dia", fimMesStr);
+  const [ocupacaoRes, profCountRes] = await Promise.all([
+    supabase
+      .from("v_ocupacao_profissional_dia")
+      .select("profissional_id, profissional_nome, dia, minutos_ocupados")
+      .gte("dia", inicioMes)
+      .lte("dia", fimMesStr),
+    supabase.from("profissionais").select("id", { count: "exact", head: true }).eq("ativo", true),
+  ]);
+  const ocupacaoDias = ocupacaoRes.data;
+  const profCount = profCountRes.count ?? 0;
 
   const minutosPorDiaSemana = new Map<number, number>();
   const minutosPorProf = new Map<string, { nome: string; minutos: number }>();
@@ -986,10 +1133,20 @@ export async function fetchResumoOcupacao(): Promise<ResumoOcupacao> {
   const profissionalMaisOcupado = { nome: maisOcupado.nome, ocupacao: Math.round((maisOcupado.minutos / ocupacaoMax) * 100) || 0 };
   const profissionalMenorOcupacao = { nome: menosOcupado.nome, ocupacao: ocupacaoMax > 0 ? Math.round((menosOcupado.minutos / ocupacaoMax) * 100) : 0 };
 
-  const graficoOcupacao = [1, 2, 3, 4, 5, 6].map((dow) => ({
-    dia: DIAS[dow],
-    ocupacao: minutosPorDiaSemana.get(dow) ? Math.round((minutosPorDiaSemana.get(dow)! / (8 * 60)) * 100) : 0,
-  }));
+  const diasUteisPorDow: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  let diaAtual = new Date(ano, mes - 1, 1);
+  while (diaAtual <= fimMes) {
+    diasUteisPorDow[diaAtual.getDay()]++;
+    diaAtual.setDate(diaAtual.getDate() + 1);
+  }
+
+  const graficoOcupacao = [1, 2, 3, 4, 5, 6].map((dow) => {
+    const minutos = minutosPorDiaSemana.get(dow) ?? 0;
+    const diasDesseDow = diasUteisPorDow[dow] || 1;
+    const disponivel = profCount * 8 * 60 * diasDesseDow;
+    const ocupacao = disponivel > 0 ? Math.min(100, Math.round((minutos / disponivel) * 100)) : 0;
+    return { dia: DIAS[dow], ocupacao };
+  });
 
   return {
     taxaOcupacaoMes,
@@ -998,6 +1155,7 @@ export async function fetchResumoOcupacao(): Promise<ResumoOcupacao> {
     profissionalMenorOcupacao,
     horariosOciososCriticos: [],
     graficoOcupacao,
+    graficoOcupacaoPeriodo: { de: inicioMes, ate: fimMesStr },
   };
 }
 

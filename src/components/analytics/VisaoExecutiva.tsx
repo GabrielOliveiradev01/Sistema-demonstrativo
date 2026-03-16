@@ -28,10 +28,17 @@ interface VisaoExecutivaProps {
   data: VisaoExecutivaData | null;
   receitaDiaria30?: AnalyticsReceitaDiaria30[];
   ocupacaoPorDiaSemana?: AnalyticsOcupacaoPorDiaSemana[];
+  ocupacaoPorDiaSemanaPeriodo?: { de: string; ate: string } | null;
   loading?: boolean;
 }
 
-export function VisaoExecutiva({ data, receitaDiaria30 = padraoReceita30, ocupacaoPorDiaSemana = padraoOcupacao, loading }: VisaoExecutivaProps) {
+function formatarPeriodo(de: string, ate: string): string {
+  const [y1, m1, d1] = de.split("-");
+  const [y2, m2, d2] = ate.split("-");
+  return `${d1}/${m1}/${y1} a ${d2}/${m2}/${y2}`;
+}
+
+export function VisaoExecutiva({ data, receitaDiaria30 = padraoReceita30, ocupacaoPorDiaSemana = padraoOcupacao, ocupacaoPorDiaSemanaPeriodo, loading }: VisaoExecutivaProps) {
   const v = data ?? vazio;
 
   const cards = [
@@ -83,6 +90,11 @@ export function VisaoExecutiva({ data, receitaDiaria30 = padraoReceita30, ocupac
             <IconChart className="h-4 w-4" />
             Ocupação por dia da semana
           </p>
+          {ocupacaoPorDiaSemanaPeriodo && (
+            <p className="mb-2 text-xs text-slate-500">
+              Período: {formatarPeriodo(ocupacaoPorDiaSemanaPeriodo.de, ocupacaoPorDiaSemanaPeriodo.ate)}
+            </p>
+          )}
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ocupacaoPorDiaSemana.length > 0 ? ocupacaoPorDiaSemana : padraoOcupacao}>

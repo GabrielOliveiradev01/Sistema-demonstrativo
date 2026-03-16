@@ -41,6 +41,7 @@ export interface Servico {
   id: string;
   nome: string;
   duracao_minutos?: number;
+  valor_base?: number;
 }
 
 export interface SugestaoEncaixe {

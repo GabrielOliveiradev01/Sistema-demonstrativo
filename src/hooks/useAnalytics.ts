@@ -38,6 +38,7 @@ export function useAnalytics() {
   const [receitaLucratividade, setReceitaLucratividade] = useState<AnalyticsReceitaLucratividade | null>(null);
   const [receitaDiaria30, setReceitaDiaria30] = useState<AnalyticsReceitaDiaria30[]>([]);
   const [ocupacaoPorDiaSemana, setOcupacaoPorDiaSemana] = useState<AnalyticsOcupacaoPorDiaSemana[]>([]);
+  const [ocupacaoPorDiaSemanaPeriodo, setOcupacaoPorDiaSemanaPeriodo] = useState<{ de: string; ate: string } | null>(null);
   const [cancelamentosPorHorario, setCancelamentosPorHorario] = useState<AnalyticsCancelamentosPorHorario[]>([]);
   const [projecoes, setProjecoes] = useState<AnalyticsProjecoes | null>(null);
   const [insightsIA, setInsightsIA] = useState<{ titulo: string; descricao?: string | null }[]>([]);
@@ -55,7 +56,7 @@ export function useAnalytics() {
         risco,
         receitaLuc,
         receita30,
-        ocupacaoDia,
+        ocupacaoResult,
         cancelamentos,
         proj,
         insights,
@@ -77,7 +78,8 @@ export function useAnalytics() {
       setRiscoPerdas(risco);
       setReceitaLucratividade(receitaLuc);
       setReceitaDiaria30(receita30);
-      setOcupacaoPorDiaSemana(ocupacaoDia);
+      setOcupacaoPorDiaSemana(ocupacaoResult.dados);
+      setOcupacaoPorDiaSemanaPeriodo(ocupacaoResult.periodo);
       setCancelamentosPorHorario(cancelamentos);
       setProjecoes(proj);
       setInsightsIA((insights ?? []).map((i) => ({ titulo: i.titulo, descricao: i.descricao })));
@@ -100,6 +102,7 @@ export function useAnalytics() {
     receitaLucratividade,
     receitaDiaria30,
     ocupacaoPorDiaSemana,
+    ocupacaoPorDiaSemanaPeriodo,
     cancelamentosPorHorario,
     projecoes,
     insightsIA,

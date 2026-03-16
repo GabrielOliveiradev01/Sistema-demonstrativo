@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ListaServicos } from "@/components/servicos/ListaServicos";
 import { CategoriasServicos } from "@/components/servicos/CategoriasServicos";
-import { CadastroServico } from "@/components/servicos/CadastroServico";
+import { CadastroServico, type ProfissionalParaVinculo } from "@/components/servicos/CadastroServico";
 import { MetricasServico } from "@/components/servicos/MetricasServico";
 import { PacotesCombos } from "@/components/servicos/PacotesCombos";
 import { useServicos } from "@/hooks/useServicos";
 import type { CategoriaItem } from "@/lib/dados-paginas";
 import type { ServicoCompleto } from "@/lib/mock-servicos";
-import { createCategoriaServico, createPacote, createServico, updateServico } from "@/lib/dados-supabase";
+import { createCategoriaServico, createPacote, createServico, updateServico, fetchProfissionais, fetchProfissionaisVinculadosServico, saveServicosProfissionais } from "@/lib/dados-supabase";
 
 function getServicoVazio(categorias: CategoriaItem[]): ServicoCompleto {
   return {
@@ -23,6 +23,7 @@ function getServicoVazio(categorias: CategoriaItem[]): ServicoCompleto {
     status: "ativo",
     receita30Dias: 0,
     descricao: "",
+    observacao: "",
     corCalendario: "#22c55e",
     bufferAntes: 0,
     bufferDepois: 15,
@@ -49,25 +50,52 @@ export default function ServicosPage() {
   const { servicos, categorias, pacotes, loading, error, refetch } = useServicos();
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [filtroNome, setFiltroNome] = useState("");
   const [servicoEmEdicao, setServicoEmEdicao] = useState<string | null>(null);
   const [criandoNovo, setCriandoNovo] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [profissionaisDisponiveis, setProfissionaisDisponiveis] = useState<ProfissionalParaVinculo[]>([]);
+  const [profissionaisVinculadosIds, setProfissionaisVinculadosIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchProfissionais().then((p) => setProfissionaisDisponiveis(p.map((x) => ({ id: x.id, nome: x.nome })))).catch(() => setProfissionaisDisponiveis([]));
+  }, []);
+
+  useEffect(() => {
+    if (servicoEmEdicao) {
+      const svc = servicos.find((s) => s.id === servicoEmEdicao);
+      fetchProfissionaisVinculadosServico(servicoEmEdicao)
+        .then((ids) => setProfissionaisVinculadosIds(ids.length > 0 ? ids : (svc?.profissionalIds ?? [])))
+        .catch(() => setProfissionaisVinculadosIds(svc?.profissionalIds ?? []));
+    } else {
+      setProfissionaisVinculadosIds([]);
+    }
+  }, [servicoEmEdicao, servicos]);
 
   const servicosFiltrados = useMemo(() => {
     let list = [...servicos];
+    if (filtroNome.trim()) {
+      const termo = filtroNome.trim().toLowerCase();
+      list = list.filter((s) => s.nome.toLowerCase().includes(termo));
+    }
     if (filtroCategoria) list = list.filter((s) => s.categoriaId === filtroCategoria);
     if (filtroStatus) list = list.filter((s) => s.status === filtroStatus);
     return list;
-  }, [servicos, filtroCategoria, filtroStatus]);
+  }, [servicos, filtroNome, filtroCategoria, filtroStatus]);
 
   const servicoCompleto: ServicoCompleto | null = useMemo(() => {
     if (!servicoEmEdicao) return null;
     const svc = servicos.find((s) => s.id === servicoEmEdicao);
     if (!svc) return null;
+    const base = getServicoVazio(categorias);
     return {
-      ...getServicoVazio(categorias),
+      ...base,
       ...svc,
       categoriaNome: categorias.find((c) => c.id === svc.categoriaId)?.nome ?? "—",
+      descricao: svc.descricao ?? base.descricao,
+      observacao: svc.observacao ?? base.observacao,
+      profissionalIds: svc.profissionalIds ?? [],
+      profissionalNomes: svc.profissionalNomes ?? [],
     };
   }, [servicoEmEdicao, servicos, categorias]);
 
@@ -82,16 +110,21 @@ export default function ServicosPage() {
     }
   };
 
-  const handleSalvarServico = async (data: Partial<ServicoCompleto>) => {
+  const handleSalvarServico = async (data: Partial<ServicoCompleto> & { profissionaisVinculadosIds?: string[] }) => {
     if (!data.nome?.trim()) {
       setActionError("Informe o nome do serviço.");
       return;
     }
     setActionError(null);
     try {
+      const ids = data.profissionaisVinculadosIds ?? [];
+      const nomes = ids.map((id) => profissionaisDisponiveis.find((p) => p.id === id)?.nome ?? "").filter(Boolean);
       const payload = {
         nome: data.nome.trim(),
         descricao: data.descricao ?? null,
+        observacao: data.observacao ?? null,
+        profissional_ids: ids,
+        profissional_nomes: nomes,
         duracao_minutos: Number(data.duracao ?? 60),
         valor_base: Number(data.precoBase ?? 0),
         ativo: (data.status ?? "ativo") === "ativo",
@@ -113,11 +146,19 @@ export default function ServicosPage() {
         gerar_proximos_automatico: Boolean(data.gerarProximosAutomatico),
         limite_repeticoes: data.limiteRepeticoes ?? null,
       };
+      let servicoId: string;
       if (criandoNovo) {
-        await createServico(payload);
+        servicoId = await createServico(payload);
       } else if (servicoEmEdicao) {
+        servicoId = servicoEmEdicao;
         await updateServico(servicoEmEdicao, payload);
+      } else {
+        await refetch();
+        setServicoEmEdicao(null);
+        setCriandoNovo(false);
+        return;
       }
+      await saveServicosProfissionais(servicoId, ids);
       await refetch();
       setServicoEmEdicao(null);
       setCriandoNovo(false);
@@ -164,6 +205,8 @@ export default function ServicosPage() {
             <ListaServicos
               servicos={servicosFiltrados}
               categorias={categorias}
+              filtroNome={filtroNome}
+              onFiltroNome={setFiltroNome}
               filtroCategoria={filtroCategoria}
               onFiltroCategoria={setFiltroCategoria}
               filtroStatus={filtroStatus}
@@ -188,6 +231,8 @@ export default function ServicosPage() {
           <CadastroServico
             servico={criandoNovo ? getServicoVazio(categorias) : servicoCompleto}
             categorias={categorias}
+            profissionaisDisponiveis={profissionaisDisponiveis}
+            profissionaisVinculadosIds={profissionaisVinculadosIds}
             isNovo={criandoNovo}
             onFechar={() => { setServicoEmEdicao(null); setCriandoNovo(false); }}
             onSalvar={handleSalvarServico}

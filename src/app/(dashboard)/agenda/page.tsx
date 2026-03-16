@@ -18,10 +18,25 @@ import {
 } from "@/lib/dados-supabase";
 import type { Agendamento } from "@/lib/mock-agenda";
 import { HORARIO_INICIO, HORARIO_FIM } from "@/lib/mock-agenda";
+import type { HorarioClinciaDia } from "@/lib/dados-supabase";
 
 function parseTime(t: string) {
   const [h, m] = t.split(":").map(Number);
   return h + (m ?? 0) / 60;
+}
+
+/** Dado uma data e os horários da clínica, retorna o range de exibição da agenda */
+function getHorarioRangeParaData(date: Date, horarios: HorarioClinciaDia[]): { inicio: number; fim: number; fechado: boolean } {
+  const dow = date.getDay();
+  const cfg = horarios.find((h) => h.diaSemana === dow) ?? horarios[dow];
+  if (!cfg || cfg.fechado || !cfg.abre || !cfg.fecha) {
+    return { inicio: HORARIO_INICIO, fim: HORARIO_INICIO, fechado: true };
+  }
+  return {
+    inicio: parseTime(cfg.abre),
+    fim: parseTime(cfg.fecha),
+    fechado: false,
+  };
 }
 
 export default function AgendaPage() {
@@ -40,10 +55,16 @@ export default function AgendaPage() {
     servicos: SERVICOS,
     listaEspera,
     clientes,
+    horariosClincia,
     loading,
     error,
     refetch,
   } = useAgendaDia(date);
+
+  const horarioRange = useMemo(
+    () => getHorarioRangeParaData(date, horariosClincia),
+    [date.getTime(), horariosClincia]
+  );
 
   const agendamentosFiltrados = useMemo(() => {
     let list = [...agendamentosDia];
@@ -59,9 +80,8 @@ export default function AgendaPage() {
       profissionalId && PROFISSIONAIS.length
         ? PROFISSIONAIS.filter((p) => p.id === profissionalId)
         : PROFISSIONAIS;
-
-    const totalMinutosDisponiveis =
-      ativos.length * (HORARIO_FIM - HORARIO_INICIO) * 60;
+    const [hi, hf] = horarioRange.fechado ? [HORARIO_INICIO, HORARIO_INICIO] : [horarioRange.inicio, horarioRange.fim];
+    const totalMinutosDisponiveis = ativos.length * (hf - hi) * 60;
 
     let minutosOcupados = 0;
     let receitaPrevista = 0;
@@ -82,13 +102,9 @@ export default function AgendaPage() {
 
     // Horários livres críticos: TODOS os slots de 30min livres no dia selecionado
     let horariosLivresCriticos = 0;
-    if (ativos.length > 0) {
+    if (ativos.length > 0 && !horarioRange.fechado) {
       for (const prof of ativos) {
-        for (
-          let t = HORARIO_INICIO;
-          t < HORARIO_FIM;
-          t += stepMin / 60
-        ) {
+        for (let t = hi; t < hf; t += stepMin / 60) {
           const slotStart = t;
           const slotEnd = t + stepMin / 60;
           const ocupado = agendamentosDia.some((a) => {
@@ -108,7 +124,7 @@ export default function AgendaPage() {
       horariosLivresCriticos,
       riscoNoShowHoje: riscoNoShow,
     };
-  }, [agendamentosDia, PROFISSIONAIS, profissionalId]);
+  }, [agendamentosDia, PROFISSIONAIS, profissionalId, horarioRange]);
 
   const handleSlotVazioClick = useCallback((horario: string, profId: string, profissionalNome: string) => {
     setPanelState({ type: "slot_vazio", horario, profissionalId: profId, profissionalNome });
@@ -237,6 +253,9 @@ export default function AgendaPage() {
               profissionalFiltroId={profissionalId}
               profissionais={PROFISSIONAIS}
               modoColuna="profissional"
+              horarioInicio={horarioRange.inicio}
+              horarioFim={horarioRange.fim}
+              fechado={horarioRange.fechado}
             />
           )}
 
@@ -256,6 +275,9 @@ export default function AgendaPage() {
               profissionalFiltroId={profissionalId || undefined}
               profissionais={PROFISSIONAIS}
               modoColuna="profissional"
+              horarioInicio={horarioRange.inicio}
+              horarioFim={horarioRange.fim}
+              fechado={horarioRange.fechado}
             />
           )}
 
@@ -268,6 +290,9 @@ export default function AgendaPage() {
               profissionalFiltroId={profissionalId || undefined}
               profissionais={PROFISSIONAIS}
               modoColuna="profissional"
+              horarioInicio={horarioRange.inicio}
+              horarioFim={horarioRange.fim}
+              fechado={horarioRange.fechado}
             />
           )}
 
@@ -282,6 +307,9 @@ export default function AgendaPage() {
                 nome: `${s.nome} — ${s.unidade}`,
               }))}
               modoColuna="sala"
+              horarioInicio={horarioRange.inicio}
+              horarioFim={horarioRange.fim}
+              fechado={horarioRange.fechado}
             />
           )}
 
@@ -297,6 +325,7 @@ export default function AgendaPage() {
         <AgendaSidePanel
           state={panelState}
           date={date}
+          horariosClincia={horariosClincia}
           clientes={clientes}
           servicos={SERVICOS}
           salas={SALAS}

@@ -1,6 +1,12 @@
 "use client";
 
 import type { ResumoOcupacao } from "@/lib/dados-supabase";
+
+function formatarPeriodo(de: string, ate: string): string {
+  const [y1, m1, d1] = de.split("-");
+  const [y2, m2, d2] = ate.split("-");
+  return `${d1}/${m1}/${y1} a ${d2}/${m2}/${y2}`;
+}
 import {
   BarChart,
   Bar,
@@ -68,6 +74,11 @@ export function BlocoOcupacao({ data, loading }: { data: ResumoOcupacao | null; 
       )}
       <div className="card">
         <p className="mb-3 text-sm font-medium text-slate-600">Ocupação por dia da semana</p>
+        {d.graficoOcupacaoPeriodo && (
+          <p className="mb-2 text-xs text-slate-500">
+            Período: {formatarPeriodo(d.graficoOcupacaoPeriodo.de, d.graficoOcupacaoPeriodo.ate)}
+          </p>
+        )}
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={grafico}>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { ProfissionalCreate } from "@/lib/dados-supabase";
+import { useState, useEffect, useMemo } from "react";
+import type { ProfissionalCreate, HorarioProfissional } from "@/lib/dados-supabase";
+import { createProfissional, saveProfissionaisHorarios } from "@/lib/dados-supabase";
 import { criarLoginProfissional } from "@/lib/dados-paginas";
 
 export type ProfissionalFormData = {
@@ -13,17 +14,38 @@ export type ProfissionalFormData = {
   especialidade: string | null;
   unidade_id: string | null;
   cor_agenda: string | null;
+  horarios?: HorarioProfissional[];
 };
 
 export type PerfilOption = { id: string; nome: string };
 
 const CORES_AGENDA = ["#22c55e", "#3b82f6", "#a855f7", "#f59e0b", "#ef4444", "#ec4899"];
 
+const DIAS_SEMANA = [
+  { dia_semana: 1, label: "Segunda" },
+  { dia_semana: 2, label: "Terça" },
+  { dia_semana: 3, label: "Quarta" },
+  { dia_semana: 4, label: "Quinta" },
+  { dia_semana: 5, label: "Sexta" },
+  { dia_semana: 6, label: "Sábado" },
+  { dia_semana: 0, label: "Domingo" },
+];
+
+const DEFAULT_HORARIOS: HorarioProfissional[] = [
+  { dia_semana: 0, abre: "09:00", fecha: "18:00", fechado: true },
+  { dia_semana: 1, abre: "09:00", fecha: "18:00", fechado: false },
+  { dia_semana: 2, abre: "09:00", fecha: "18:00", fechado: false },
+  { dia_semana: 3, abre: "09:00", fecha: "18:00", fechado: false },
+  { dia_semana: 4, abre: "09:00", fecha: "18:00", fechado: false },
+  { dia_semana: 5, abre: "09:00", fecha: "18:00", fechado: false },
+  { dia_semana: 6, abre: "09:00", fecha: "13:00", fechado: false },
+];
+
 interface FormProfissionalProps {
   profissional: ProfissionalFormData | null;
   unidades: { id: string; nome: string }[];
   perfis: PerfilOption[];
-  onSalvar: (payload: ProfissionalCreate, opcoes?: { profissionalJaCriado?: boolean }) => Promise<void>;
+  onSalvar: (payload: ProfissionalCreate, opcoes?: { profissionalJaCriado?: boolean; profissionalId?: string; horarios?: HorarioProfissional[] }) => Promise<void>;
   onCancelar: () => void;
 }
 
@@ -40,6 +62,7 @@ export function FormProfissional({ profissional, unidades, perfis = [], onSalvar
   const [senha, setSenha] = useState("");
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState("");
+  const [horarios, setHorarios] = useState<HorarioProfissional[]>(DEFAULT_HORARIOS);
 
   useEffect(() => {
     if (profissional) {
@@ -50,8 +73,63 @@ export function FormProfissional({ profissional, unidades, perfis = [], onSalvar
       setEspecialidade(profissional.especialidade ?? "");
       setUnidadeId(profissional.unidade_id ?? "");
       setCorAgenda(profissional.cor_agenda ?? "#22c55e");
+      setHorarios(profissional.horarios?.length ? profissional.horarios : DEFAULT_HORARIOS);
+    } else {
+      setHorarios(DEFAULT_HORARIOS);
     }
   }, [profissional]);
+
+  const resumoHorarios = useMemo(() => {
+    const ativos = horarios.filter((h) => !h.fechado);
+    if (ativos.length === 0) return "Este profissional não trabalha em nenhum dia.";
+    const faixasStr = [...new Set(ativos.map((h) => `${h.abre}-${h.fecha}`))].join(", ");
+    const diasLabel = DIAS_SEMANA.filter((d) => ativos.some((a) => a.dia_semana === d.dia_semana)).map((d) => d.label);
+    const diasStr = diasLabel.length === 7 ? "todos os dias" : diasLabel.join(", ");
+    return `Este profissional trabalha ${faixasStr}, ${diasStr}.`;
+  }, [horarios]);
+
+  const getSlotsPorDia = (dia_semana: number) => {
+    const fechado = horarios.find((h) => h.dia_semana === dia_semana && h.fechado);
+    const slots = horarios.filter((h) => h.dia_semana === dia_semana && !h.fechado).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+    return { fechado: !!fechado, slots };
+  };
+
+  const setTrabalha = (dia_semana: number, trabalha: boolean) => {
+    setHorarios((prev) => {
+      const outros = prev.filter((h) => h.dia_semana !== dia_semana);
+      if (!trabalha) return [...outros, { dia_semana, abre: "09:00", fecha: "18:00", fechado: true }];
+      const slotsExistentes = prev.filter((h) => h.dia_semana === dia_semana && !h.fechado);
+      if (slotsExistentes.length > 0) return outros.concat(slotsExistentes);
+      return [...outros, { dia_semana, abre: "09:00", fecha: "18:00", fechado: false }];
+    });
+  };
+
+  const updateSlot = (dia_semana: number, slotIdx: number, upd: Partial<HorarioProfissional>) => {
+    setHorarios((prev) => {
+      const slots = prev.filter((h) => h.dia_semana === dia_semana && !h.fechado).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      const outros = prev.filter((h) => !(h.dia_semana === dia_semana && !h.fechado));
+      const novo = [...slots];
+      if (novo[slotIdx]) novo[slotIdx] = { ...novo[slotIdx], ...upd };
+      return outros.concat(novo.map((s, i) => ({ ...s, ordem: i })));
+    });
+  };
+
+  const addSlot = (dia_semana: number) => {
+    setHorarios((prev) => {
+      const slots = prev.filter((h) => h.dia_semana === dia_semana && !h.fechado);
+      const outros = prev.filter((h) => !(h.dia_semana === dia_semana && !h.fechado));
+      return [...outros, ...slots, { dia_semana, abre: "16:00", fecha: "20:00", fechado: false, ordem: slots.length }];
+    });
+  };
+
+  const removeSlot = (dia_semana: number, slotIdx: number) => {
+    setHorarios((prev) => {
+      const slots = prev.filter((h) => h.dia_semana === dia_semana && !h.fechado).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      const outros = prev.filter((h) => !(h.dia_semana === dia_semana && !h.fechado));
+      const novo = slots.filter((_, i) => i !== slotIdx);
+      return outros.concat(novo.map((s, i) => ({ ...s, ordem: i })));
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,16 +152,19 @@ export function FormProfissional({ profissional, unidades, perfis = [], onSalvar
     }
     setSaving(true);
     try {
-      if (isEdicao) {
-        await onSalvar({
-          nome: nome.trim(),
-          email: email.trim(),
-          telefone: telefone.trim() || null,
-          cargo: cargo.trim() || null,
-          especialidade: especialidade.trim() || null,
-          unidade_id: unidadeId || null,
-          cor_agenda: corAgenda || null,
-        });
+      if (isEdicao && profissional) {
+        await onSalvar(
+          {
+            nome: nome.trim(),
+            email: email.trim(),
+            telefone: telefone.trim() || null,
+            cargo: cargo.trim() || null,
+            especialidade: especialidade.trim() || null,
+            unidade_id: unidadeId || null,
+            cor_agenda: corAgenda || null,
+          },
+          { horarios, profissionalId: profissional.id }
+        );
       } else {
         const { createProfissional } = await import("@/lib/dados-supabase");
         const profId = await createProfissional({
@@ -120,7 +201,7 @@ export function FormProfissional({ profissional, unidades, perfis = [], onSalvar
             unidade_id: unidadeId || null,
             cor_agenda: corAgenda || null,
           },
-          { profissionalJaCriado: true }
+          { profissionalJaCriado: true, profissionalId: profId, horarios }
         );
       }
     } catch (err) {
@@ -219,6 +300,71 @@ export function FormProfissional({ profissional, unidades, perfis = [], onSalvar
             />
           ))}
         </div>
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+        <label className="block text-xs font-medium text-slate-600">Dias e horários de trabalho</label>
+        <p className="text-xs text-slate-500">Adicione múltiplas faixas por dia (ex: 12:30-14:00 e 16:00-20:00)</p>
+        <div className="space-y-4">
+          {DIAS_SEMANA.map((dia) => {
+            const { fechado, slots } = getSlotsPorDia(dia.dia_semana);
+            const trabalha = !fechado && (slots.length > 0 || horarios.some((h) => h.dia_semana === dia.dia_semana));
+            const slotsParaExibir = slots.length > 0 ? slots : [{ abre: "09:00", fecha: "18:00", fechado: false } as HorarioProfissional];
+            return (
+              <div key={dia.dia_semana} className="rounded-lg border border-slate-200 bg-white p-3">
+                <label className="mb-2 flex min-w-[100px] items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={trabalha}
+                    onChange={(e) => setTrabalha(dia.dia_semana, e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  <span className="text-sm font-medium">{dia.label}</span>
+                </label>
+                {trabalha ? (
+                  <div className="space-y-2 pl-6">
+                    {slotsParaExibir.map((slot, idx) => (
+                      <div key={idx} className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="time"
+                          value={slot.abre}
+                          onChange={(e) => updateSlot(dia.dia_semana, idx, { abre: e.target.value })}
+                          className="rounded border border-slate-200 px-2 py-1 text-sm"
+                        />
+                        <span className="text-slate-500">às</span>
+                        <input
+                          type="time"
+                          value={slot.fecha}
+                          onChange={(e) => updateSlot(dia.dia_semana, idx, { fecha: e.target.value })}
+                          className="rounded border border-slate-200 px-2 py-1 text-sm"
+                        />
+                        {slotsParaExibir.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSlot(dia.dia_semana, idx)}
+                            className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                          >
+                            Remover
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addSlot(dia.dia_semana)}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      + Adicionar outra faixa
+                    </button>
+                  </div>
+                ) : (
+                  <p className="pl-6 text-sm text-slate-400">Não trabalha</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="rounded bg-white px-3 py-2 text-sm text-slate-700">{resumoHorarios}</p>
       </div>
 
       {!isEdicao && (

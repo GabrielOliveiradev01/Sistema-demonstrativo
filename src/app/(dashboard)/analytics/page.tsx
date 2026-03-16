@@ -18,6 +18,7 @@ export default function AnalyticsPage() {
     receitaLucratividade,
     receitaDiaria30,
     ocupacaoPorDiaSemana,
+    ocupacaoPorDiaSemanaPeriodo,
     cancelamentosPorHorario,
     projecoes,
     insightsIA,
@@ -40,6 +41,7 @@ export default function AnalyticsPage() {
           data={visaoExecutiva}
           receitaDiaria30={receitaDiaria30}
           ocupacaoPorDiaSemana={ocupacaoPorDiaSemana}
+          ocupacaoPorDiaSemanaPeriodo={ocupacaoPorDiaSemanaPeriodo}
           loading={loading}
         />
         <ReceitaLucratividade data={receitaLucratividade} loading={loading} />

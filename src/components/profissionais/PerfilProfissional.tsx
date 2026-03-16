@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   IconX,
   IconMapPin,
@@ -16,9 +17,25 @@ interface PerfilProfissionalProps {
   perfil: PerfilProfissionalFull;
   onFechar: () => void;
   onEditar?: (perfil: PerfilProfissionalFull) => void;
+  onExcluir?: (id: string) => void | Promise<void>;
 }
 
-export function PerfilProfissional({ perfil, onFechar, onEditar }: PerfilProfissionalProps) {
+export function PerfilProfissional({ perfil, onFechar, onEditar, onExcluir }: PerfilProfissionalProps) {
+  const [excluirConfirmando, setExcluirConfirmando] = useState(false);
+
+  const handleExcluir = async () => {
+    if (!excluirConfirmando) {
+      setExcluirConfirmando(true);
+      return;
+    }
+    try {
+      await onExcluir?.(perfil.id);
+      onFechar();
+    } catch (_e) {
+      setExcluirConfirmando(false);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 p-4">
@@ -31,6 +48,15 @@ export function PerfilProfissional({ perfil, onFechar, onEditar }: PerfilProfiss
               className="rounded px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
             >
               Editar
+            </button>
+          )}
+          {onExcluir && (
+            <button
+              type="button"
+              onClick={handleExcluir}
+              className={`rounded px-3 py-1.5 text-sm font-medium ${excluirConfirmando ? "bg-red-600 text-white hover:bg-red-700" : "text-red-600 hover:bg-red-50"}`}
+            >
+              {excluirConfirmando ? "Confirmar exclusão" : "Excluir"}
             </button>
           )}
           <button
@@ -115,6 +141,12 @@ export function PerfilProfissional({ perfil, onFechar, onEditar }: PerfilProfiss
             ))}
           </ul>
         </div>
+
+        {excluirConfirmando && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            Clique novamente em &quot;Confirmar exclusão&quot; para desativar este profissional. Ele deixará de aparecer na lista.
+          </div>
+        )}
 
         {/* Inteligência aplicada (no perfil) */}
         <div>

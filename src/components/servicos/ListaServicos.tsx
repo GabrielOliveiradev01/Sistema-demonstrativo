@@ -9,6 +9,8 @@ const formatBRL = (n: number) =>
 interface ListaServicosProps {
   servicos: ServicoListItem[];
   categorias: { id: string; nome: string }[];
+  filtroNome: string;
+  onFiltroNome: (v: string) => void;
   filtroCategoria: string;
   onFiltroCategoria: (v: string) => void;
   filtroStatus: string;
@@ -23,6 +25,8 @@ interface ListaServicosProps {
 export function ListaServicos({
   servicos,
   categorias,
+  filtroNome,
+  onFiltroNome,
   filtroCategoria,
   onFiltroCategoria,
   filtroStatus,
@@ -38,6 +42,13 @@ export function ListaServicos({
       <h2 className="text-lg font-semibold text-slate-800">1. Lista de serviços</h2>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            value={filtroNome}
+            onChange={(e) => onFiltroNome(e.target.value)}
+            placeholder="Buscar por nome..."
+            className="min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm placeholder:text-slate-400"
+          />
           <select
             value={filtroCategoria}
             onChange={(e) => onFiltroCategoria(e.target.value)}
