@@ -821,11 +821,12 @@ function timeStr(iso: string): string {
 
 /** Agendamentos de um dia (início entre 00:00 e 23:59 do dia em timezone local) */
 export async function fetchAgendamentosDia(data: Date): Promise<Agendamento[]> {
-  const y = data.getFullYear();
-  const m = String(data.getMonth() + 1).padStart(2, "0");
-  const d = String(data.getDate()).padStart(2, "0");
-  const inicioInicio = `${y}-${m}-${d}T00:00:00`;
-  const inicioFim = `${y}-${m}-${d}T23:59:59`;
+  // Filtra pelo "dia local" do usuário (evita off-by-one por UTC).
+  // Convertemos o início/fim do dia local para ISO (UTC) antes de enviar ao PostgREST.
+  const inicioDiaLocal = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
+  const fimDiaLocal = new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
+  const inicioInicio = inicioDiaLocal.toISOString();
+  const inicioFim = fimDiaLocal.toISOString();
   const { data: rows, error } = await supabase
     .from("agendamentos")
     .select(
