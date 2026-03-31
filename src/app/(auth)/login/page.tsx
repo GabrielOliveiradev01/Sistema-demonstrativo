@@ -94,6 +94,11 @@ export default function LoginPage() {
           >
             {carregando ? "Entrando…" : "Entrar"}
           </button>
+          <div className="text-center">
+            <Link href="/esqueci-senha" className="text-sm font-medium text-primary hover:underline">
+              Esqueci minha senha
+            </Link>
+          </div>
         </form>
         <p className="mt-6 text-center text-sm text-slate-500">
           Ainda não tem conta?{" "}
