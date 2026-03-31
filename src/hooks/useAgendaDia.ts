@@ -6,6 +6,7 @@ import type { Agendamento, ClienteWaitlist, Profissional, Sala, Servico } from "
 import type { Cliente } from "@/lib/mock-clientes";
 import {
   fetchAgendamentosDia,
+  fetchAgendamentosTodos,
   fetchProfissionais,
   fetchSalas,
   fetchServicos,
@@ -15,7 +16,7 @@ import {
 } from "@/lib/dados-supabase";
 import type { HorarioClinciaDia } from "@/lib/dados-supabase";
 
-export function useAgendaDia(data: Date) {
+export function useAgendaDia(data: Date, opts?: { escopo?: "dia" | "todos" }) {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [salas, setSalas] = useState<Sala[]>([]);
@@ -30,8 +31,9 @@ export function useAgendaDia(data: Date) {
     setLoading(true);
     setError(null);
     try {
+      const escopo = opts?.escopo ?? "dia";
       const [ag, prof, sal, svc, lista, cli, horarios] = await Promise.all([
-        fetchAgendamentosDia(data),
+        escopo === "todos" ? fetchAgendamentosTodos() : fetchAgendamentosDia(data),
         fetchProfissionais(),
         fetchSalas(),
         fetchServicos(),
@@ -58,7 +60,7 @@ export function useAgendaDia(data: Date) {
     } finally {
       setLoading(false);
     }
-  }, [data.getTime()]);
+  }, [data.getTime(), opts?.escopo]);
 
   useEffect(() => {
     refetch();
