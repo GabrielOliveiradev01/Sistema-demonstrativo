@@ -22,11 +22,11 @@ interface CalendarioDiaProps {
 
 function parseTime(t: string) {
   const [h, m] = t.split(":").map(Number);
-  return h + (m ?? 0) / 60;
+  return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function slotKey(colId: string, time: number) {
-  return `${colId}-${time}`;
+function slotKey(colId: string, timeMin: number) {
+  return `${colId}-${timeMin}`;
 }
 
 export function CalendarioDia({
@@ -44,27 +44,26 @@ export function CalendarioDia({
   const stepMin = 15;
   const hi = fechado ? horarioInicio : horarioInicio;
   const hf = fechado ? horarioInicio : horarioFim;
-  const totalMinutos = Math.max(0, (hf - hi) * 60);
-  const slots = Array.from(
-    { length: totalMinutos / stepMin },
-    (_, i) => hi + (i * stepMin) / 60
-  );
+  const hiMin = Math.round(hi * 60);
+  const hfMin = Math.round(hf * 60);
+  const totalMinutos = Math.max(0, hfMin - hiMin);
+  const slots = Array.from({ length: totalMinutos / stepMin }, (_, i) => hiMin + i * stepMin);
 
   const colunas = profissionalFiltroId
     ? profissionais.filter((p) => p.id === profissionalFiltroId)
     : profissionais;
 
   // Para cada (coluna, slot), achar agendamento que cobre esse intervalo
-  const getAgendamento = (colId: string, time: number) => {
-    const start = time;
-    const end = time + stepMin / 60;
+  const getAgendamento = (colId: string, timeMin: number) => {
+    const start = timeMin;
+    const end = timeMin + stepMin;
     return agendamentos.find((a) => {
       const colMatch =
         modoColuna === "sala" ? a.salaId === colId : a.profissionalId === colId;
       if (!colMatch) return false;
-      const aStart = parseTime(a.inicio);
-      const aEnd = parseTime(a.fim);
-      return aStart < end && aEnd > start;
+      const aStartMin = parseTime(a.inicio);
+      const aEndMin = parseTime(a.fim);
+      return aStartMin < end && aEndMin > start;
     });
   };
 
@@ -110,38 +109,39 @@ export function CalendarioDia({
           </tr>
         </thead>
         <tbody>
-          {slots.map((time) => {
-            const horaInt = Math.floor(time);
-            const minutos = Math.round((time - horaInt) * 60);
+          {slots.map((timeMin) => {
+            const horaInt = Math.floor(timeMin / 60);
+            const minutos = timeMin % 60;
             const rotuloHora = `${horaInt.toString().padStart(2, "0")}:${minutos
               .toString()
               .padStart(2, "0")}`;
             return (
-              <tr key={time}>
+              <tr key={timeMin}>
                 <td className="border border-slate-200 p-1 text-slate-500">
                   {rotuloHora}
                 </td>
                 {colunas.map((col) => {
-                  const ag = getAgendamento(col.id, time);
+                  const ag = getAgendamento(col.id, timeMin);
                   if (ag) {
-                    const horaInicio = parseTime(ag.inicio);
+                    const inicioMin = parseTime(ag.inicio);
+                    const fimMin = parseTime(ag.fim);
                     const rowSpan = Math.max(
                       1,
                       Math.ceil(
-                        (parseTime(ag.fim) - horaInicio) / (stepMin / 60)
+                        (fimMin - inicioMin) / stepMin
                       )
                     );
-                    const isFirstRow = Math.abs(time - horaInicio) < 1e-6;
+                    const isFirstRow = timeMin === inicioMin;
                     if (!isFirstRow)
                       return (
                         <td
-                          key={slotKey(col.id, time)}
+                          key={slotKey(col.id, timeMin)}
                           className="border-0 p-0 h-0 overflow-hidden invisible"
                         />
                       );
                     return (
                       <td
-                        key={slotKey(col.id, time)}
+                        key={slotKey(col.id, timeMin)}
                         rowSpan={rowSpan}
                         className="border border-slate-200 align-top p-1"
                       >
@@ -156,7 +156,7 @@ export function CalendarioDia({
                   }
                   return (
                     <td
-                      key={slotKey(col.id, time)}
+                      key={slotKey(col.id, timeMin)}
                       className="border border-slate-200 align-top p-1"
                     >
                       <button
