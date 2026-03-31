@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { usePermissions } from "@/hooks/usePermissions";
+import logoCedipi from "../../logotipo-centro-de-diagnostico-por-imagem.png";
 import {
   IconHome,
   IconCalendar,
@@ -88,7 +90,14 @@ export function Sidebar() {
   return (
     <aside className="fixed left-4 top-4 z-30 flex h-[calc(100vh-2rem)] w-60 flex-col overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md">
       <div className="border-b border-slate-100 px-4 py-5">
-        <h1 className="text-lg font-bold tracking-tight text-primary">Agendamento</h1>
+        <div className="flex flex-col items-start gap-3">
+          <Image
+            src={logoCedipi}
+            alt="CEDIPI - Centro de Diagnóstico por Imagem"
+            priority
+            className="h-auto w-full"
+          />
+        </div>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-auto p-3">
         {itensVisiveis.map((item) => {

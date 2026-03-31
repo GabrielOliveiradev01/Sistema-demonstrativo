@@ -45,8 +45,7 @@ export default function CadastroPage() {
     <div className="w-full max-w-md">
       <div className="rounded-2xl border border-slate-200/80 bg-white p-8 shadow-lg">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-primary">Agendamento</h1>
-          <p className="mt-1 text-sm text-slate-500">Criar nova conta</p>
+          <p className="text-sm text-slate-500">Criar nova conta</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
           {erro && (

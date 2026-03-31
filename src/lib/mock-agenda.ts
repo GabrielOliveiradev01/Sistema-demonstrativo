@@ -222,6 +222,6 @@ export const SLOTS_OTIMIZACAO = {
   profissionaisOciosos: ["Carlos Lima"],
 };
 
-// Horário de funcionamento (para grade)
-export const HORARIO_INICIO = 8;
-export const HORARIO_FIM = 19;
+// Horário de funcionamento (para grade) — 7:00 às 20:00
+export const HORARIO_INICIO = 7;
+export const HORARIO_FIM = 20;

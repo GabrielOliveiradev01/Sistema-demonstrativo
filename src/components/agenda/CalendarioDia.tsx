@@ -41,7 +41,7 @@ export function CalendarioDia({
   horarioFim = HORARIO_FIM,
   fechado = false,
 }: CalendarioDiaProps) {
-  const stepMin = 30;
+  const stepMin = 15;
   const hi = fechado ? horarioInicio : horarioInicio;
   const hf = fechado ? horarioInicio : horarioFim;
   const totalMinutos = Math.max(0, (hf - hi) * 60);

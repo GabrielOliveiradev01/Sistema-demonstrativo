@@ -451,8 +451,8 @@ export async function fetchHorariosClincia(): Promise<HorarioClinciaDia[]> {
   if (!empresaId) {
     return [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => ({
       diaSemana,
-      abre: diaSemana === 0 ? "" : diaSemana === 6 ? "09:00" : "09:00",
-      fecha: diaSemana === 0 ? "" : diaSemana === 6 ? "13:00" : "18:00",
+      abre: diaSemana === 0 ? "" : diaSemana === 6 ? "07:00" : "07:00",
+      fecha: diaSemana === 0 ? "" : diaSemana === 6 ? "13:00" : "20:00",
       fechado: diaSemana === 0,
     }));
   }
@@ -471,8 +471,8 @@ export async function fetchHorariosClincia(): Promise<HorarioClinciaDia[]> {
   });
   return [0, 1, 2, 3, 4, 5, 6].map((diaSemana) => {
     const cfg = mapa.get(diaSemana) ?? {
-      abre: diaSemana === 0 ? "" : diaSemana === 6 ? "09:00" : "09:00",
-      fecha: diaSemana === 0 ? "" : diaSemana === 6 ? "13:00" : "18:00",
+      abre: diaSemana === 0 ? "" : diaSemana === 6 ? "07:00" : "07:00",
+      fecha: diaSemana === 0 ? "" : diaSemana === 6 ? "13:00" : "20:00",
       fechado: diaSemana === 0,
     };
     return { diaSemana, ...cfg };

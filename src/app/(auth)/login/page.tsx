@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import logoCedipi from "../../../../logotipo-centro-de-diagnostico-por-imagem.png";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,8 +41,15 @@ export default function LoginPage() {
     <div className="w-full max-w-md">
       <div className="rounded-2xl border border-slate-200/80 bg-white p-8 shadow-lg">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-primary">Agendamento</h1>
-          <p className="mt-1 text-sm text-slate-500">Entre na sua conta</p>
+          <div className="mb-5 flex justify-center">
+            <Image
+              src={logoCedipi}
+              alt="CEDIPI - Centro de Diagnóstico por Imagem"
+              priority
+              className="h-auto w-[260px] max-w-full"
+            />
+          </div>
+          <p className="text-sm text-slate-500">Entre na sua conta</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
           {erro && (

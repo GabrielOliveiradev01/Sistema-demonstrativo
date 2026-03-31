@@ -75,7 +75,7 @@ export default function AgendaPage() {
   }, [agendamentosDia, profissionalId, salaId, servicoId, SERVICOS]);
 
   const indicadores = useMemo(() => {
-    const stepMin = 30;
+    const stepMin = 15;
     const ativos =
       profissionalId && PROFISSIONAIS.length
         ? PROFISSIONAIS.filter((p) => p.id === profissionalId)
