@@ -806,9 +806,13 @@ function mapStatus(s: string): Agendamento["status"] {
 }
 
 function timeStr(iso: string): string {
-  // Converte ISO (TIMESTAMPTZ) para horário local do browser.
-  // Isso garante que agendamentos inseridos em UTC (+00) apareçam no slot correto
-  // para o usuário (ex.: America/Sao_Paulo).
+  // Usa diretamente a parte HH:MM da string vinda do banco,
+  // evitando deslocamentos de fuso horário do Date().
+  const s = String(iso);
+  if (s.length >= 16) {
+    return s.slice(11, 16);
+  }
+  // Fallback em caso de formato inesperado
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes();
@@ -841,55 +845,12 @@ export async function fetchAgendamentosDia(data: Date): Promise<Agendamento[]> {
   if (error) throw error;
   const rel = (x: { nome?: string } | { nome?: string }[] | null | undefined) =>
     !x ? "—" : Array.isArray(x) ? x[0]?.nome ?? "—" : x.nome ?? "—";
-  const nomeOuId = (nome: string, id?: string | null) =>
-    nome !== "—" ? nome : id ? `#${String(id).slice(0, 8)}` : "—";
   return (rows ?? []).map((a: AgendamentoRow) => ({
     id: a.id,
     clienteId: a.cliente_id,
-    clienteNome: nomeOuId(rel(a.clientes), a.cliente_id),
+    clienteNome: rel(a.clientes),
     servicoId: a.servico_id ?? undefined,
-    servico: nomeOuId(rel(a.servicos), a.servico_id ?? null),
-    valor: Number(a.valor) || 0,
-    status: mapStatus(a.status),
-    riscoNivel: (a.risco_nivel as Agendamento["riscoNivel"]) ?? "baixo",
-    inicio: timeStr(a.inicio),
-    fim: timeStr(a.fim),
-    inicioISO: a.inicio,
-    fimISO: a.fim,
-    profissionalId: a.profissional_id,
-    profissionalNome: rel(a.profissionais),
-    salaId: a.sala_id ?? undefined,
-    salaNome: rel(a.salas) === "—" ? undefined : rel(a.salas),
-  }));
-}
-
-/** Todos os agendamentos (ordenado por início). Use com cuidado: pode crescer. */
-export async function fetchAgendamentosTodos(limit = 1000): Promise<Agendamento[]> {
-  const { data: rows, error } = await supabase
-    .from("agendamentos")
-    .select(
-      `
-      id, inicio, fim, status, valor, risco_nivel,
-      cliente_id, profissional_id, servico_id, sala_id,
-      clientes(nome),
-      profissionais(id, nome, cor_agenda),
-      servicos(id, nome),
-      salas(id, nome)
-    `
-    )
-    .order("inicio", { ascending: true })
-    .limit(limit);
-  if (error) throw error;
-  const rel = (x: { nome?: string } | { nome?: string }[] | null | undefined) =>
-    !x ? "—" : Array.isArray(x) ? x[0]?.nome ?? "—" : x.nome ?? "—";
-  const nomeOuId = (nome: string, id?: string | null) =>
-    nome !== "—" ? nome : id ? `#${String(id).slice(0, 8)}` : "—";
-  return (rows ?? []).map((a: AgendamentoRow) => ({
-    id: a.id,
-    clienteId: a.cliente_id,
-    clienteNome: nomeOuId(rel(a.clientes), a.cliente_id),
-    servicoId: a.servico_id ?? undefined,
-    servico: nomeOuId(rel(a.servicos), a.servico_id ?? null),
+    servico: rel(a.servicos),
     valor: Number(a.valor) || 0,
     status: mapStatus(a.status),
     riscoNivel: (a.risco_nivel as Agendamento["riscoNivel"]) ?? "baixo",

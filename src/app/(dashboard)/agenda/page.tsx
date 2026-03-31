@@ -59,7 +59,7 @@ export default function AgendaPage() {
     loading,
     error,
     refetch,
-  } = useAgendaDia(date, { escopo: viewMode === "lista" ? "todos" : "dia" });
+  } = useAgendaDia(date);
 
   const horarioRange = useMemo(
     () => getHorarioRangeParaData(date, horariosClincia),
