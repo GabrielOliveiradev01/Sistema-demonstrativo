@@ -806,17 +806,17 @@ function mapStatus(s: string): Agendamento["status"] {
 }
 
 function timeStr(iso: string): string {
-  // Usa diretamente a parte HH:MM da string vinda do banco,
-  // evitando deslocamentos de fuso horário do Date().
-  const s = String(iso);
-  if (s.length >= 16) {
-    return s.slice(11, 16);
-  }
-  // Fallback em caso de formato inesperado
+  // Padroniza exibição para o fuso da clínica, evitando variar conforme o fuso do usuário.
+  // Observação: para o horário "bater" com o esperado, quem insere (ex.: n8n) deve enviar
+  // o horário com offset correto (ex.: -03:00) ou aplicar a migração 016 (normalização n8n).
   const d = new Date(iso);
-  const h = d.getHours();
-  const m = d.getMinutes();
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const hhmm = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+  return hhmm;
 }
 
 /** Agendamentos de um dia (início entre 00:00 e 23:59 do dia em timezone local) */
