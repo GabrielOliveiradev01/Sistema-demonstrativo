@@ -953,7 +953,7 @@ export type StatusComprovantePagamento = "pagamento_feito" | "nao_realizada";
 
 export type ComprovantePagamento = {
   id: string;
-  agendamento_id: string;
+  agendamento_id: string | null;
   data_pagamento: string;
   status: StatusComprovantePagamento;
   valor_realizado: number | null;
@@ -970,7 +970,7 @@ export async function fetchComprovantesPagamento(limit = 200): Promise<Comprovan
   if (error) throw error;
   return (data ?? []).map((r) => ({
     id: r.id as string,
-    agendamento_id: r.agendamento_id as string,
+    agendamento_id: (r.agendamento_id as string | null) ?? null,
     data_pagamento: r.data_pagamento as string,
     status: (r.status as StatusComprovantePagamento) ?? "pagamento_feito",
     valor_realizado: r.valor_realizado == null ? null : Number(r.valor_realizado),
@@ -980,7 +980,7 @@ export async function fetchComprovantesPagamento(limit = 200): Promise<Comprovan
 }
 
 export type ComprovantePagamentoCreate = {
-  agendamento_id: string;
+  agendamento_id?: string | null;
   data_pagamento?: string;
   status?: StatusComprovantePagamento;
   valor_realizado?: number | null;
@@ -992,7 +992,7 @@ export async function createComprovantePagamento(payload: ComprovantePagamentoCr
   const { data, error } = await supabase
     .from("comprovantes_pagamento")
     .insert({
-      agendamento_id: payload.agendamento_id,
+      agendamento_id: payload.agendamento_id ?? null,
       data_pagamento: payload.data_pagamento ?? new Date().toISOString(),
       status: payload.status ?? "pagamento_feito",
       valor_realizado: payload.valor_realizado ?? null,

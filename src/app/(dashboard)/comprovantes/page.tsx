@@ -49,7 +49,7 @@ export default function ComprovantesPage() {
     void load();
   }, []);
 
-  const canSubmit = useMemo(() => agendamentoId.trim().length > 0 && !saving, [agendamentoId, saving]);
+  const canSubmit = useMemo(() => !saving, [saving]);
 
   return (
     <div className="p-6 lg:p-8">
@@ -62,12 +62,12 @@ export default function ComprovantesPage() {
 
       <div className="mb-8 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-6">
         <div className="lg:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-slate-700">ID do agendamento</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">ID do agendamento (opcional)</label>
           <input
             value={agendamentoId}
             onChange={(e) => setAgendamentoId(e.target.value)}
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            placeholder="UUID do agendamento"
+            placeholder="UUID do agendamento (se quiser vincular)"
           />
         </div>
         <div>
@@ -130,7 +130,7 @@ export default function ComprovantesPage() {
               try {
                 const iso = dataPagamento ? new Date(dataPagamento).toISOString() : new Date().toISOString();
                 await createComprovantePagamento({
-                  agendamento_id: agendamentoId.trim(),
+                  agendamento_id: agendamentoId.trim() ? agendamentoId.trim() : null,
                   data_pagamento: iso,
                   status,
                   valor_realizado: valorRealizado.trim() ? Number(valorRealizado) : null,
@@ -199,7 +199,7 @@ export default function ComprovantesPage() {
                     <td className="px-4 py-3 text-slate-800">{formatMoney(r.valor_realizado)}</td>
                     <td className="px-4 py-3 text-slate-800">{formatMoney(r.valor_comprovante)}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                      {r.agendamento_id}
+                      {r.agendamento_id ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       {r.descricao ?? "—"}
