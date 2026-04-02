@@ -947,6 +947,77 @@ export async function marcarListaEsperaAtendida(listaEsperaId: string, agendamen
   if (error) throw error;
 }
 
+// ========== COMPROVANTES ==========
+
+export type StatusComprovantePagamento = "pagamento_feito" | "nao_realizada";
+
+export type ComprovantePagamento = {
+  id: string;
+  agendamento_id: string;
+  data_pagamento: string;
+  status: StatusComprovantePagamento;
+  valor_realizado: number | null;
+  valor_comprovante: number | null;
+  descricao: string | null;
+};
+
+export async function fetchComprovantesPagamento(limit = 200): Promise<ComprovantePagamento[]> {
+  const { data, error } = await supabase
+    .from("comprovantes_pagamento")
+    .select("id, agendamento_id, data_pagamento, status, valor_realizado, valor_comprovante, descricao")
+    .order("data_pagamento", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    id: r.id as string,
+    agendamento_id: r.agendamento_id as string,
+    data_pagamento: r.data_pagamento as string,
+    status: (r.status as StatusComprovantePagamento) ?? "pagamento_feito",
+    valor_realizado: r.valor_realizado == null ? null : Number(r.valor_realizado),
+    valor_comprovante: r.valor_comprovante == null ? null : Number(r.valor_comprovante),
+    descricao: (r.descricao as string | null) ?? null,
+  }));
+}
+
+export type ComprovantePagamentoCreate = {
+  agendamento_id: string;
+  data_pagamento?: string;
+  status?: StatusComprovantePagamento;
+  valor_realizado?: number | null;
+  valor_comprovante?: number | null;
+  descricao?: string | null;
+};
+
+export async function createComprovantePagamento(payload: ComprovantePagamentoCreate): Promise<string> {
+  const { data, error } = await supabase
+    .from("comprovantes_pagamento")
+    .insert({
+      agendamento_id: payload.agendamento_id,
+      data_pagamento: payload.data_pagamento ?? new Date().toISOString(),
+      status: payload.status ?? "pagamento_feito",
+      valor_realizado: payload.valor_realizado ?? null,
+      valor_comprovante: payload.valor_comprovante ?? null,
+      descricao: payload.descricao ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+export type ComprovantePagamentoUpdate = Partial<{
+  data_pagamento: string;
+  status: StatusComprovantePagamento;
+  valor_realizado: number | null;
+  valor_comprovante: number | null;
+  descricao: string | null;
+}>;
+
+export async function updateComprovantePagamento(id: string, payload: ComprovantePagamentoUpdate): Promise<void> {
+  const { error } = await supabase.from("comprovantes_pagamento").update(payload).eq("id", id);
+  if (error) throw error;
+}
+
 /** Lista de espera (não atendidos) */
 export async function fetchListaEspera(): Promise<ClienteWaitlist[]> {
   const { data, error } = await supabase
